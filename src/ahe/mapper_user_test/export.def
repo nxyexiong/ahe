@@ -1,0 +1,4 @@
+LIBRARY
+
+EXPORTS
+    my_dll_main @1

@@ -1,0 +1,49 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.6.33815.320
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "caproot", "caproot\caproot.vcxproj", "{6D167551-E794-4FCE-91AC-1C123E91D7E6}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mapper", "mapper\mapper.vcxproj", "{26172E7E-02AE-4029-B197-3B0E6047C837}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "caproot_test", "caproot_test\caproot_test.vcxproj", "{24C60724-549B-426D-B269-8EC591F0AF02}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "user_run", "user_run\user_run.vcxproj", "{FB00D3DD-C0EB-42CF-A013-154F86F19591}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mapper_user_test", "mapper_user_test\mapper_user_test.vcxproj", "{AB02F117-2AB1-48A2-B91F-88294F170829}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{6D167551-E794-4FCE-91AC-1C123E91D7E6}.Debug|x64.ActiveCfg = Debug|x64
+		{6D167551-E794-4FCE-91AC-1C123E91D7E6}.Debug|x64.Build.0 = Debug|x64
+		{6D167551-E794-4FCE-91AC-1C123E91D7E6}.Release|x64.ActiveCfg = Release|x64
+		{6D167551-E794-4FCE-91AC-1C123E91D7E6}.Release|x64.Build.0 = Release|x64
+		{26172E7E-02AE-4029-B197-3B0E6047C837}.Debug|x64.ActiveCfg = Debug|x64
+		{26172E7E-02AE-4029-B197-3B0E6047C837}.Debug|x64.Build.0 = Debug|x64
+		{26172E7E-02AE-4029-B197-3B0E6047C837}.Release|x64.ActiveCfg = Release|x64
+		{26172E7E-02AE-4029-B197-3B0E6047C837}.Release|x64.Build.0 = Release|x64
+		{24C60724-549B-426D-B269-8EC591F0AF02}.Debug|x64.ActiveCfg = Debug|x64
+		{24C60724-549B-426D-B269-8EC591F0AF02}.Debug|x64.Build.0 = Debug|x64
+		{24C60724-549B-426D-B269-8EC591F0AF02}.Release|x64.ActiveCfg = Release|x64
+		{24C60724-549B-426D-B269-8EC591F0AF02}.Release|x64.Build.0 = Release|x64
+		{FB00D3DD-C0EB-42CF-A013-154F86F19591}.Debug|x64.ActiveCfg = Debug|x64
+		{FB00D3DD-C0EB-42CF-A013-154F86F19591}.Debug|x64.Build.0 = Debug|x64
+		{FB00D3DD-C0EB-42CF-A013-154F86F19591}.Release|x64.ActiveCfg = Release|x64
+		{FB00D3DD-C0EB-42CF-A013-154F86F19591}.Release|x64.Build.0 = Release|x64
+		{AB02F117-2AB1-48A2-B91F-88294F170829}.Debug|x64.ActiveCfg = Debug|x64
+		{AB02F117-2AB1-48A2-B91F-88294F170829}.Debug|x64.Build.0 = Debug|x64
+		{AB02F117-2AB1-48A2-B91F-88294F170829}.Release|x64.ActiveCfg = Release|x64
+		{AB02F117-2AB1-48A2-B91F-88294F170829}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {EA7E929B-11B2-4D0D-9889-1EF21B5F1B95}
+	EndGlobalSection
+EndGlobal

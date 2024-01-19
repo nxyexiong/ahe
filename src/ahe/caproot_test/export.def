@@ -1,0 +1,5 @@
+LIBRARY "caproot_test"
+
+EXPORTS
+    initialize @1
+    uninitialize @2

@@ -1,0 +1,5 @@
+LIBRARY "mapper"
+
+EXPORTS
+    initialize @1
+    uninitialize @2
