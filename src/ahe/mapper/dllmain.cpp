@@ -130,29 +130,15 @@ bool user_map(const std::string& image_path, const std::string& proc_name, uintp
         [&](char* module_name, uint16_t ordinal) {
             uint32_t module_size = 0;
             auto module_base = get_module_from_process(process, module_name, module_size);
-            if (!module_base &&
-                !user_map(module_name, proc_name, module_base, module_size)) {
-                printf("[-] get export failed: %s, %d\n", module_name, (int)ordinal);
-                return (uintptr_t)0;
-            }
-            auto ret = get_export(process, module_base, module_size, ExportType::Ordinal, ordinal, nullptr);
-            if (!ret)
-                printf("[-] get export failed: %s, %d\n", module_name, (int)ordinal);
-            return ret;
+            if (!module_base) return (uintptr_t)0;
+            return get_export(process, module_base, module_size, ExportType::Ordinal, ordinal, nullptr);
         },
         // get_import_by_name
         [&](char* module_name, char* method_name) {
             uint32_t module_size = 0;
             auto module_base = get_module_from_process(process, module_name, module_size);
-            if (!module_base &&
-                !user_map(module_name, proc_name, module_base, module_size)) {
-                printf("[-] get export failed: %s, %s\n", module_name, method_name);
-                return (uintptr_t)0;
-            }
-            auto ret = get_export(process, module_base, module_size, ExportType::Name, 0, method_name);
-            if (!ret)
-                printf("[-] get export failed: %s, %s\n", module_name, method_name);
-            return ret;
+            if (!module_base) return (uintptr_t)0;
+            return get_export(process, module_base, module_size, ExportType::Name, 0, method_name);
         },
         // run
         [&](void* mapping_base, void* entry_point) {
@@ -167,8 +153,8 @@ bool user_map(const std::string& image_path, const std::string& proc_name, uintp
     // map
     auto rst = mapper.map();
     if (!rst) printf("[-] map failed\n");
+    else printf("[+] map succeeded\n");
     CloseHandle(process);
 
-    printf("[+] user map %s success\n", image_path.c_str());
     return rst;
 }

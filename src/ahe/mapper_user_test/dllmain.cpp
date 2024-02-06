@@ -6,6 +6,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
                        LPVOID lpReserved
                      )
 {
+    MessageBoxA(nullptr, "test", "test", MB_OK);
     switch (ul_reason_for_call)
     {
     case DLL_PROCESS_ATTACH:
@@ -15,11 +16,5 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         break;
     }
     return TRUE;
-}
-
-// custom entry set in Linker -> Advanced -> Entry point
-DWORD WINAPI MyEntry(LPVOID param) {
-    MessageBoxA(nullptr, "test", "test", MB_OK);
-    return 0;
 }
 
