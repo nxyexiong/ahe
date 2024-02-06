@@ -13,13 +13,15 @@ Mapper::Mapper(
 	std::function<bool(void*, void*, uint32_t)> copy,
 	std::function<void(void*, uint32_t)> free,
 	std::function<uintptr_t(char*, uint16_t)> get_import_by_ordinal,
-	std::function<uintptr_t(char*, char*)> get_import_by_name) {
+	std::function<uintptr_t(char*, char*)> get_import_by_name,
+	std::function<bool(void*, void*)> run) {
 	image_path_ = image_path;
 	alloc_ = alloc;
 	copy_ = copy;
 	free_ = free;
 	get_import_by_ordinal_ = get_import_by_ordinal;
 	get_import_by_name_ = get_import_by_name;
+	run_ = run;
 	dos_header_ = nullptr;
 	nt_header_ = nullptr;
 	section_headers_ = nullptr;
@@ -107,6 +109,14 @@ bool Mapper::map() {
 	// copy
 	if (!copy_(map_buf_.data(), map_base_, image_size)) {
 		printf("[-] copy failed\n");
+		free_(map_base_, image_size);
+		return false;
+	}
+
+	// run
+	auto entry_point = (uintptr_t)map_base_ + nt_header_->OptionalHeader.AddressOfEntryPoint;
+	if (!run_(map_base_, (void*)entry_point)) {
+		printf("[-] run failed\n");
 		free_(map_base_, image_size);
 		return false;
 	}

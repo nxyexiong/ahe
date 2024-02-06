@@ -30,9 +30,4 @@
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
-  <ItemGroup>
-    <None Include="export.def">
-      <Filter>Source Files</Filter>
-    </None>
-  </ItemGroup>
 </Project>

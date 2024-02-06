@@ -5,6 +5,16 @@
 using func_initialize = bool(NTAPI*)(int, char**, void*);
 using func_uninitialize = void(NTAPI*)();
 
+//int main() {
+//    auto dll = LoadLibraryA("mapper.dll");
+//    func_initialize initialize = (func_initialize)GetProcAddress(dll, "initialize");
+//    func_uninitialize uninitialize = (func_uninitialize)GetProcAddress(dll, "uninitialize");
+//    const char* args[] = { "C:\\workspace\\ahe\\src\\ahe\\x64\\Release\\mapper_user_test.dll", "notepad.exe" };
+//    auto init_rst = initialize(2, (char**)args, nullptr);
+//    uninitialize();
+//    return 0;
+//}
+
 int main(int argc, char* argv[]) {
     bool has_arg = true;
     std::string feature_dll;

@@ -17,7 +17,8 @@ BOOL APIENTRY DllMain( HMODULE hModule,
     return TRUE;
 }
 
-DWORD WINAPI my_dll_main(LPVOID param) {
+// custom entry set in Linker -> Advanced -> Entry point
+DWORD WINAPI MyEntry(LPVOID param) {
     MessageBoxA(nullptr, "test", "test", MB_OK);
     return 0;
 }

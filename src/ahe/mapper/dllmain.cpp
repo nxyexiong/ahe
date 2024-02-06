@@ -13,7 +13,7 @@ using func_root_func = VOID(NTAPI*)(func_MmGetSystemRoutineAddressFunc);
 using func_exploit = bool(NTAPI*)(func_root_func);
 
 bool kernel_map(const std::string& image_path);
-bool user_map(const std::string& image_path, const std::string& entry_name, const std::string& proc_name);
+bool user_map(const std::string& image_path, const std::string& proc_name, uintptr_t& mapped_base, uint32_t& mapped_size);
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved) { return TRUE; }
 
@@ -31,14 +31,15 @@ bool NTAPI initialize(int argc, char* argv[], func_exploit exploit) {
         return kernel_map(image_path);
     }
     else {
-        if (argc < 3) {
+        if (argc < 2) {
             printf("[-] invalid parameters\n");
             return false;
         }
         std::string image_path = argv[0];
-        std::string entry_name = argv[1];
-        std::string proc_name = argv[2];
-        return user_map(image_path, entry_name, proc_name);
+        std::string proc_name = argv[1];
+        uintptr_t mapped_base = 0;
+        uint32_t mapped_size = 0;
+        return user_map(image_path, proc_name, mapped_base, mapped_size);
     }
 
     return true;
@@ -78,6 +79,10 @@ bool kernel_map(const std::string& image_path) {
         [](char* module_name, char* method_name) {
             uintptr_t ret = 0;
             return ret;
+        },
+        // run
+        [](void* mapping_base, void* entry_point) {
+            return true;
         });
 
     // map
@@ -89,7 +94,7 @@ bool kernel_map(const std::string& image_path) {
     return true;
 }
 
-bool user_map(const std::string& image_path, const std::string& entry_name, const std::string& proc_name) {
+bool user_map(const std::string& image_path, const std::string& proc_name, uintptr_t& mapped_base, uint32_t& mapped_size) {
     // build image path
     std::wstringstream wss_image;
     wss_image << image_path.c_str();
@@ -106,7 +111,6 @@ bool user_map(const std::string& image_path, const std::string& entry_name, cons
     }
 
     // build mapper
-    uintptr_t map_base = 0;
     auto mapper = Mapper(image_path_w,
         // alloc
         [&](uint32_t size) {
@@ -114,7 +118,8 @@ bool user_map(const std::string& image_path, const std::string& entry_name, cons
         },
         // copy
         [&](void* payload, void* base, uint32_t size) {
-            map_base = (uintptr_t)base;
+            mapped_base = (uintptr_t)base;
+            mapped_size = size;
             return WriteProcessMemory(process, base, payload, size, nullptr);
         },
         // free
@@ -125,6 +130,11 @@ bool user_map(const std::string& image_path, const std::string& entry_name, cons
         [&](char* module_name, uint16_t ordinal) {
             uint32_t module_size = 0;
             auto module_base = get_module_from_process(process, module_name, module_size);
+            if (!module_base &&
+                !user_map(module_name, proc_name, module_base, module_size)) {
+                printf("[-] get export failed: %s, %d\n", module_name, (int)ordinal);
+                return (uintptr_t)0;
+            }
             auto ret = get_export(process, module_base, module_size, ExportType::Ordinal, ordinal, nullptr);
             if (!ret)
                 printf("[-] get export failed: %s, %d\n", module_name, (int)ordinal);
@@ -134,49 +144,31 @@ bool user_map(const std::string& image_path, const std::string& entry_name, cons
         [&](char* module_name, char* method_name) {
             uint32_t module_size = 0;
             auto module_base = get_module_from_process(process, module_name, module_size);
+            if (!module_base &&
+                !user_map(module_name, proc_name, module_base, module_size)) {
+                printf("[-] get export failed: %s, %s\n", module_name, method_name);
+                return (uintptr_t)0;
+            }
             auto ret = get_export(process, module_base, module_size, ExportType::Name, 0, method_name);
             if (!ret)
                 printf("[-] get export failed: %s, %s\n", module_name, method_name);
             return ret;
+        },
+        // run
+        [&](void* mapping_base, void* entry_point) {
+            auto thread = CreateRemoteThread(process, nullptr, 0, reinterpret_cast<LPTHREAD_START_ROUTINE>(entry_point), nullptr, 0, nullptr);
+            if (thread) {
+                CloseHandle(thread);
+                return true;
+            }
+            return false;
         });
 
-    auto success = true;
-    HANDLE thread = nullptr;
-    HMODULE mod = nullptr;
-    do {
-        // map
-        auto rst = mapper.map();
-        if (!rst) {
-            printf("[-] map failed\n");
-            success = false;
-            break;
-        }
-
-        // run
-        mod = LoadLibraryW(image_path_w.c_str());
-        if (!mod) {
-            printf("[-] failed to load library\n");
-            success = false;
-            break;
-        }
-        auto entry_addr = (uintptr_t)GetProcAddress(mod, entry_name.c_str());
-        if (!entry_addr) {
-            printf("[-] failed to get entry addr\n");
-            success = false;
-            break;
-        }
-        auto call_addr = entry_addr - (uintptr_t)mod + map_base;
-        thread = CreateRemoteThread(process, nullptr, 0, reinterpret_cast<LPTHREAD_START_ROUTINE>(call_addr), nullptr, 0, nullptr);
-        if (!thread) {
-            printf("[-] failed to run\n");
-            success = false;
-            break;
-        }
-    } while (false);
-
-    if (thread) CloseHandle(thread);
-    if (mod) FreeLibrary(mod);
+    // map
+    auto rst = mapper.map();
+    if (!rst) printf("[-] map failed\n");
     CloseHandle(process);
 
-    return success;
+    printf("[+] user map %s success\n", image_path.c_str());
+    return rst;
 }
