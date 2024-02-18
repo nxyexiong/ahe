@@ -1,8 +1,8 @@
-// dllmain.cpp : Defines the entry point for the DLL application.
 #include "pch.h"
 #include <cstdio>
 #include <memory>
 #include <sstream>
+#include <shellapi.h>
 #include "mapper.h"
 #include "utils.h"
 
@@ -12,51 +12,67 @@ using func_MmGetSystemRoutineAddressFunc = PVOID(NTAPI*)(PUNICODE_STRING);
 using func_root_func = VOID(NTAPI*)(func_MmGetSystemRoutineAddressFunc);
 using func_exploit = bool(NTAPI*)(func_root_func);
 
-bool kernel_map(const std::string& image_path);
-bool user_map(const std::string& image_path, const std::string& proc_name, uintptr_t& mapped_base, uint32_t& mapped_size);
+bool parse_cmdline(bool& is_kernel, std::wstring& image_path, std::wstring& proc_name);
+bool kernel_map(const std::wstring& image_path);
+bool user_map(const std::wstring& image_path, const std::wstring& proc_name);
 
-BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved) { return TRUE; }
-
-bool NTAPI initialize(int argc, char* argv[], func_exploit exploit) {
-    printf("[*] mapper init: argc = %d\n", argc);
-    for (int i = 0; i < argc; i++) printf("[*] argv[%d] = %s\n", i, argv[i]);
-
-    const auto is_kernel = exploit != nullptr;
-    if (is_kernel) {
-        if (argc < 1) {
-            printf("[-] invalid parameters\n");
-            return false;
-        }
-        std::string image_path = argv[0];
-        return kernel_map(image_path);
+int main() {
+    bool is_kernel = false;
+    std::wstring image_path;
+    std::wstring proc_name;
+    if (!parse_cmdline(is_kernel, image_path, proc_name)) {
+        printf("[-] invalid parameters. usage:\n");
+        printf("    mapper.exe -kernel -image <image path>\n");
+        printf("    mapper.exe -image <image path> -proc_name <proc name>\n");
+        return 1;
     }
-    else {
-        if (argc < 2) {
-            printf("[-] invalid parameters\n");
-            return false;
-        }
-        std::string image_path = argv[0];
-        std::string proc_name = argv[1];
-        uintptr_t mapped_base = 0;
-        uint32_t mapped_size = 0;
-        return user_map(image_path, proc_name, mapped_base, mapped_size);
+
+    bool rst = false;
+    if (is_kernel)
+        rst = kernel_map(image_path);
+    else
+        rst = user_map(image_path, proc_name);
+
+    return rst ? 0 : 1;
+}
+
+bool parse_cmdline(bool& is_kernel, std::wstring& image_path, std::wstring& proc_name) {
+    is_kernel = false;
+    image_path.clear();
+    proc_name.clear();
+
+    auto cmdline = GetCommandLineW();
+    int num_args;
+    auto args = CommandLineToArgvW(cmdline, &num_args);
+    if (!args) {
+        printf("[-] error parsing cmd line\n");
+        return false;
     }
+    std::vector<std::wstring> arg_strs;
+    for (int i = 0; i < num_args; ++i) {
+        std::wstring arg_str = args[i];
+        arg_strs.push_back(arg_str);
+    }
+
+    if (std::find(arg_strs.begin(), arg_strs.end(), L"-kernel") != arg_strs.end())
+        is_kernel = true;
+
+    auto image_path_arg = std::find(arg_strs.begin(), arg_strs.end(), L"-image");
+    if (image_path_arg == arg_strs.end() || image_path_arg + 1 == arg_strs.end())
+        return false;
+    image_path = *(image_path_arg + 1);
+
+    auto proc_name_arg = std::find(arg_strs.begin(), arg_strs.end(), L"-proc_name");
+    if (proc_name_arg == arg_strs.end() || proc_name_arg + 1 == arg_strs.end())
+        return false;
+    proc_name = *(proc_name_arg + 1);
 
     return true;
 }
 
-void NTAPI uninitialize() {
-    printf("[*] uninit\n");
-}
-
-bool kernel_map(const std::string& image_path) {
-    // build image path
-    std::wstringstream wss;
-    wss << image_path.c_str();
-    std::wstring image_path_w = wss.str();
-
+bool kernel_map(const std::wstring& image_path) {
     // build mapper
-    auto mapper = Mapper(image_path_w,
+    auto mapper = Mapper(image_path,
         // alloc
         [](uint32_t size) {
             void* ret = nullptr;
@@ -94,32 +110,22 @@ bool kernel_map(const std::string& image_path) {
     return true;
 }
 
-bool user_map(const std::string& image_path, const std::string& proc_name, uintptr_t& mapped_base, uint32_t& mapped_size) {
-    // build image path
-    std::wstringstream wss_image;
-    wss_image << image_path.c_str();
-    std::wstring image_path_w = wss_image.str();
-
+bool user_map(const std::wstring& image_path, const std::wstring& proc_name) {
     // open process
-    std::wstringstream wss_proc;
-    wss_proc << proc_name.c_str();
-    std::wstring proc_name_w = wss_proc.str();
-    auto process = open_process_by_name(proc_name_w);
+    auto process = open_process_by_name(proc_name);
     if (!process) {
         printf("[-] cannot open process\n");
         return false;
     }
 
     // build mapper
-    auto mapper = Mapper(image_path_w,
+    auto mapper = Mapper(image_path,
         // alloc
         [&](uint32_t size) {
             return VirtualAllocEx(process, nullptr, size, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
         },
         // copy
         [&](void* payload, void* base, uint32_t size) {
-            mapped_base = (uintptr_t)base;
-            mapped_size = size;
             return WriteProcessMemory(process, base, payload, size, nullptr);
         },
         // free

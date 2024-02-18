@@ -1,4 +1,4 @@
-LIBRARY "caproot_test"
+LIBRARY
 
 EXPORTS
     initialize @1

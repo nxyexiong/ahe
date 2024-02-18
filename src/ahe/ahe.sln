@@ -9,9 +9,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mapper", "mapper\mapper.vcx
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "caproot_test", "caproot_test\caproot_test.vcxproj", "{24C60724-549B-426D-B269-8EC591F0AF02}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "user_run", "user_run\user_run.vcxproj", "{FB00D3DD-C0EB-42CF-A013-154F86F19591}"
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mapper_user_test", "mapper_user_test\mapper_user_test.vcxproj", "{AB02F117-2AB1-48A2-B91F-88294F170829}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "dummy_dll", "dummy_dll\dummy_dll.vcxproj", "{548C3948-2AF1-4858-BB25-5BEF6FA5807A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -31,14 +29,10 @@ Global
 		{24C60724-549B-426D-B269-8EC591F0AF02}.Debug|x64.Build.0 = Debug|x64
 		{24C60724-549B-426D-B269-8EC591F0AF02}.Release|x64.ActiveCfg = Release|x64
 		{24C60724-549B-426D-B269-8EC591F0AF02}.Release|x64.Build.0 = Release|x64
-		{FB00D3DD-C0EB-42CF-A013-154F86F19591}.Debug|x64.ActiveCfg = Debug|x64
-		{FB00D3DD-C0EB-42CF-A013-154F86F19591}.Debug|x64.Build.0 = Debug|x64
-		{FB00D3DD-C0EB-42CF-A013-154F86F19591}.Release|x64.ActiveCfg = Release|x64
-		{FB00D3DD-C0EB-42CF-A013-154F86F19591}.Release|x64.Build.0 = Release|x64
-		{AB02F117-2AB1-48A2-B91F-88294F170829}.Debug|x64.ActiveCfg = Debug|x64
-		{AB02F117-2AB1-48A2-B91F-88294F170829}.Debug|x64.Build.0 = Debug|x64
-		{AB02F117-2AB1-48A2-B91F-88294F170829}.Release|x64.ActiveCfg = Release|x64
-		{AB02F117-2AB1-48A2-B91F-88294F170829}.Release|x64.Build.0 = Release|x64
+		{548C3948-2AF1-4858-BB25-5BEF6FA5807A}.Debug|x64.ActiveCfg = Debug|x64
+		{548C3948-2AF1-4858-BB25-5BEF6FA5807A}.Debug|x64.Build.0 = Debug|x64
+		{548C3948-2AF1-4858-BB25-5BEF6FA5807A}.Release|x64.ActiveCfg = Release|x64
+		{548C3948-2AF1-4858-BB25-5BEF6FA5807A}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
