@@ -2,7 +2,52 @@
 #include <vector>
 #include <tlhelp32.h>
 #include <psapi.h>
+#include <ntstatus.h>
 #include "utils.h"
+
+typedef struct _RTL_PROCESS_MODULE_INFORMATION
+{
+    HANDLE Section;
+    PVOID MappedBase;
+    PVOID ImageBase;
+    ULONG ImageSize;
+    ULONG Flags;
+    USHORT LoadOrderIndex;
+    USHORT InitOrderIndex;
+    USHORT LoadCount;
+    USHORT OffsetToFileName;
+    UCHAR FullPathName[256];
+} RTL_PROCESS_MODULE_INFORMATION, * PRTL_PROCESS_MODULE_INFORMATION;
+
+typedef struct _RTL_PROCESS_MODULES
+{
+    ULONG NumberOfModules;
+    RTL_PROCESS_MODULE_INFORMATION Modules[1];
+} RTL_PROCESS_MODULES, * PRTL_PROCESS_MODULES;
+
+uintptr_t get_module_base_kernel(const std::string& module_name) {
+    ULONG size = 0;
+    auto status = NtQuerySystemInformation((SYSTEM_INFORMATION_CLASS)11, nullptr, 0, &size);
+    if (status != STATUS_INFO_LENGTH_MISMATCH) return 0;
+
+    std::vector<uint8_t> buf(size);
+    status = NtQuerySystemInformation((SYSTEM_INFORMATION_CLASS)11, buf.data(), size, &size);
+    if (status != STATUS_SUCCESS) return 0;
+
+    auto modules = (PRTL_PROCESS_MODULES)buf.data();
+    for (ULONG i = 0; i < modules->NumberOfModules; i++) {
+        auto image = modules->Modules[i];
+        auto image_base = (uintptr_t)image.ImageBase;
+        auto image_name = (std::string)(char*)(image.FullPathName + image.OffsetToFileName);
+        auto dot_pos = image_name.find_last_of('.');
+        if (module_name == image_name) return image_base;
+        if (dot_pos != image_name.npos)
+            image_name = image_name.substr(dot_pos + 1, image_name.size() - dot_pos);
+        if (module_name == image_name) return image_base;
+    }
+
+    return 0;
+}
 
 int get_process_id_by_name(const std::wstring& process_name) {
     PROCESSENTRY32 pe32;

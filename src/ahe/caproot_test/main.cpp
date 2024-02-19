@@ -1,11 +1,12 @@
 // dllmain.cpp : Defines the entry point for the DLL application.
 #include "pch.h"
 #include <cstdio>
+#include <functional>
 
 #pragma comment(lib, "ntdll.lib") // to get RtlInitUnicodeString
 
 using func_MmGetSystemRoutineAddressFunc = PVOID(NTAPI*)(PUNICODE_STRING);
-using func_root_func = VOID(NTAPI*)(func_MmGetSystemRoutineAddressFunc);
+using func_root_func = std::function<VOID(func_MmGetSystemRoutineAddressFunc)>;
 using func_exploit = bool(NTAPI*)(func_root_func);
 using func_caproot_initialize = func_exploit(NTAPI*)();
 using func_caproot_uninitialize = bool(NTAPI*)();

