@@ -1,0 +1,5 @@
+[Defines]
+    DEC_SPECIFICATION              = 0x00010019
+    PACKAGE_NAME                   = AhePkg
+    PACKAGE_GUID                   = 5BE5E327-B88A-4A80-902B-D90C715EC3F3
+    PACKAGE_VERSION                = 1.00

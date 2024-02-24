@@ -1,0 +1,38 @@
+[Defines]
+    INF_VERSION                    = 0x00010019
+    BASE_NAME                      = RootLoader
+    FILE_GUID                      = E3B53386-4A90-4414-9A1A-88824A88C49E
+    MODULE_TYPE                    = UEFI_APPLICATION
+    VERSION_STRING                 = 1.0
+    ENTRY_POINT                    = UefiMain
+
+[Sources]
+    main.c
+    utils.c
+    hooks.c
+    mapper.c
+
+[Packages]
+    MdePkg/MdePkg.dec
+
+[LibraryClasses]
+    UefiApplicationEntryPoint
+    BaseLib
+    PrintLib
+    BaseMemoryLib
+    UefiLib
+    UefiBootServicesTableLib
+    UefiRuntimeServicesTableLib
+    PcdLib
+    MemoryAllocationLib
+    DevicePathLib
+    DebugLib
+    DebugPrintErrorLevelLib
+    RegisterFilterLib
+
+[Guids]
+    gEfiGlobalVariableGuid
+    gEfiFileInfoGuid
+
+[Protocols]
+    gEfiLoadedImageProtocolGuid
