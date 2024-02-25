@@ -11,6 +11,10 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "caproot_test", "caproot_tes
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "dummy_dll", "dummy_dll\dummy_dll.vcxproj", "{548C3948-2AF1-4858-BB25-5BEF6FA5807A}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "bootdrv", "bootdrv\bootdrv.vcxproj", "{EC2D18B2-3648-41C8-A75A-99DBA32E3BA8}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "bootdrv_test", "bootdrv_test\bootdrv_test.vcxproj", "{83664B0C-FC81-4BF6-B22C-0F8A3400EABB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -33,6 +37,16 @@ Global
 		{548C3948-2AF1-4858-BB25-5BEF6FA5807A}.Debug|x64.Build.0 = Debug|x64
 		{548C3948-2AF1-4858-BB25-5BEF6FA5807A}.Release|x64.ActiveCfg = Release|x64
 		{548C3948-2AF1-4858-BB25-5BEF6FA5807A}.Release|x64.Build.0 = Release|x64
+		{EC2D18B2-3648-41C8-A75A-99DBA32E3BA8}.Debug|x64.ActiveCfg = Debug|x64
+		{EC2D18B2-3648-41C8-A75A-99DBA32E3BA8}.Debug|x64.Build.0 = Debug|x64
+		{EC2D18B2-3648-41C8-A75A-99DBA32E3BA8}.Debug|x64.Deploy.0 = Debug|x64
+		{EC2D18B2-3648-41C8-A75A-99DBA32E3BA8}.Release|x64.ActiveCfg = Release|x64
+		{EC2D18B2-3648-41C8-A75A-99DBA32E3BA8}.Release|x64.Build.0 = Release|x64
+		{EC2D18B2-3648-41C8-A75A-99DBA32E3BA8}.Release|x64.Deploy.0 = Release|x64
+		{83664B0C-FC81-4BF6-B22C-0F8A3400EABB}.Debug|x64.ActiveCfg = Debug|x64
+		{83664B0C-FC81-4BF6-B22C-0F8A3400EABB}.Debug|x64.Build.0 = Debug|x64
+		{83664B0C-FC81-4BF6-B22C-0F8A3400EABB}.Release|x64.ActiveCfg = Release|x64
+		{83664B0C-FC81-4BF6-B22C-0F8A3400EABB}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

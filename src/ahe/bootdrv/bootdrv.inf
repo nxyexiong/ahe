@@ -1,0 +1,77 @@
+;
+; bootdrv.inf
+;
+
+[Version]
+Signature="$WINDOWS NT$"
+Class=System ; TODO: specify appropriate Class
+ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318} ; TODO: specify appropriate ClassGuid
+Provider=%ManufacturerName%
+CatalogFile=bootdrv.cat
+DriverVer= ; TODO: set DriverVer in stampinf property pages
+PnpLockdown=1
+
+[DestinationDirs]
+DefaultDestDir = 12
+bootdrv_Device_CoInstaller_CopyFiles = 11
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+bootdrv.sys  = 1,,
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
+
+;*****************************************
+; Install Section
+;*****************************************
+
+[Manufacturer]
+%ManufacturerName%=Standard,NT$ARCH$
+
+[Standard.NT$ARCH$]
+%bootdrv.DeviceDesc%=bootdrv_Device, Root\bootdrv ; TODO: edit hw-id
+
+[bootdrv_Device.NT]
+CopyFiles=Drivers_Dir
+
+[Drivers_Dir]
+bootdrv.sys
+
+;-------------- Service installation
+[bootdrv_Device.NT.Services]
+AddService = bootdrv,%SPSVCINST_ASSOCSERVICE%, bootdrv_Service_Inst
+
+; -------------- bootdrv driver install sections
+[bootdrv_Service_Inst]
+DisplayName    = %bootdrv.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\bootdrv.sys
+
+;
+;--- bootdrv_Device Coinstaller installation ------
+;
+
+[bootdrv_Device.NT.CoInstallers]
+AddReg=bootdrv_Device_CoInstaller_AddReg
+CopyFiles=bootdrv_Device_CoInstaller_CopyFiles
+
+[bootdrv_Device_CoInstaller_AddReg]
+HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
+
+[bootdrv_Device_CoInstaller_CopyFiles]
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
+
+[bootdrv_Device.NT.Wdf]
+KmdfService =  bootdrv, bootdrv_wdfsect
+[bootdrv_wdfsect]
+KmdfLibraryVersion = $KMDFVERSION$
+
+[Strings]
+SPSVCINST_ASSOCSERVICE= 0x00000002
+ManufacturerName="<Your manufacturer name>" ;TODO: Replace with your manufacturer name
+DiskName = "bootdrv Installation Disk"
+bootdrv.DeviceDesc = "bootdrv Device"
+bootdrv.SVCDESC = "bootdrv Service"
