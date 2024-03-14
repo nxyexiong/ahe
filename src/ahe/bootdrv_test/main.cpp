@@ -10,11 +10,25 @@ bool test_read_memory(Memory* memory) {
 	return value == read;
 }
 
+bool test_read_large_memory(Memory* memory) {
+	char value[] = "12345678910";
+	char read[1024] = { 0 };
+	memory->read_memory((uint64_t)value, read, sizeof(value));
+	return _stricmp(value, read) == 0;
+}
+
 bool test_write_memory(Memory* memory) {
 	int value = 0;
 	int write = 1234;
 	memory->write_memory((uint64_t)&value, &write, sizeof(int));
 	return value == write;
+}
+
+bool test_write_large_memory(Memory* memory) {
+	char value[1024] = { 0 };
+	char write[] = "12345678910";
+	memory->write_memory((uint64_t)value, write, sizeof(write));
+	return _stricmp(value, write) == 0;
 }
 
 bool test_get_module_base(Memory* memory) {
@@ -82,11 +96,27 @@ int main() {
 		failCnt++;
 	}
 
+	if (test_read_large_memory(&memory)) {
+		std::cout << "[+] test_read_large_memory" << std::endl;
+	}
+	else {
+		std::cout << "[-] test_read_large_memory" << std::endl;
+		failCnt++;
+	}
+
 	if (test_write_memory(&memory)) {
 		std::cout << "[+] test_write_memory" << std::endl;
 	}
 	else {
 		std::cout << "[-] test_write_memory" << std::endl;
+		failCnt++;
+	}
+
+	if (test_write_large_memory(&memory)) {
+		std::cout << "[+] test_write_large_memory" << std::endl;
+	}
+	else {
+		std::cout << "[-] test_write_large_memory" << std::endl;
 		failCnt++;
 	}
 

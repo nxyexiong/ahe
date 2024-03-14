@@ -5,7 +5,7 @@
 #include "memory.h"
 #include "server.h"
 
-#define BUF_SIZE 512
+#define BUF_SIZE 1024
 #define TCP_LISTEN_PORT 5554
 
 // return -1 if failed
@@ -35,21 +35,21 @@ INT32 CreateListenSocket(UINT16 Port) {
 	return Sock;
 }
 
-BOOLEAN HandleRequest(UINT8* ReqBuf, UINT32 ReqBufLen, UINT8* RspBuf, UINT32* ReqLen, UINT32* RspLen) {
+VOID HandleRequest(UINT8* ReqBuf, UINT8* RspBuf, UINT32* RspLen) {
 	PREQUEST Req = (PREQUEST)ReqBuf;
+	PVOID Data = ReqBuf + sizeof(REQUEST);
 	if (Req->Type == READ_MEMORY_REQUEST) {
 		PrintLog("HandleRequest: read process request");
 
 		RtlZeroMemory(RspBuf, sizeof(RESPONSE));
 		PRESPONSE Rsp = (PRESPONSE)RspBuf;
+		PVOID RspData = RspBuf + sizeof(RESPONSE);
 		Rsp->Type = READ_MEMORY_RESPONSE;
 		Rsp->DataLen = Req->DataLen;
-		Rsp->Status = ReadMemory(Req->Pid, (PVOID)Req->Addr, Req->DataLen, &Rsp->Data);
+		SIZE_T r = 0;
+		Rsp->Status = ReadProcessMemory(Req->Pid, (PVOID)Req->Addr, RspData, Req->DataLen, &r);
 
-		MagicCrypt(RspBuf, sizeof(RESPONSE));
-
-		*ReqLen = sizeof(REQUEST);
-		*RspLen = sizeof(RESPONSE);
+		*RspLen = sizeof(RESPONSE) + Req->DataLen;
 	}
 	else if (Req->Type == WRITE_MEMORY_REQUEST) {
 		PrintLog("HandleRequest: write process request");
@@ -57,39 +57,31 @@ BOOLEAN HandleRequest(UINT8* ReqBuf, UINT32 ReqBufLen, UINT8* RspBuf, UINT32* Re
 		RtlZeroMemory(RspBuf, sizeof(RESPONSE));
 		PRESPONSE Rsp = (PRESPONSE)RspBuf;
 		Rsp->Type = WRITE_MEMORY_RESPONSE;
-		Rsp->DataLen = Req->DataLen;
-		Rsp->Status = WriteMemory(Req->Pid, (PVOID)Req->Addr, Req->DataLen, &Req->Data);
+		Rsp->DataLen = 0;
+		SIZE_T w = 0;
+		Rsp->Status = WriteProcessMemory(Req->Pid, (PVOID)Req->Addr, Data, Req->DataLen, &w);
 
-		MagicCrypt(RspBuf, sizeof(RESPONSE));
-
-		*ReqLen = sizeof(REQUEST);
 		*RspLen = sizeof(RESPONSE);
 	}
 	else if (Req->Type == GET_MODULE_REQUEST) {
-		if (ReqBufLen < sizeof(REQUEST) + Req->ExtraInfoLen) return FALSE;
-		MagicCrypt(ReqBuf + sizeof(REQUEST), Req->ExtraInfoLen);
 		UINT8 Name[1024] = { 0 };
-		RtlCopyMemory(Name, ReqBuf + sizeof(REQUEST), Req->ExtraInfoLen);
+		RtlCopyMemory(Name, Data, Req->DataLen);
 		PrintLog("HandleRequest: get module request, name = %ls", (UINT16*)Name);
 
 		RtlZeroMemory(RspBuf, sizeof(RESPONSE));
 		PRESPONSE Rsp = (PRESPONSE)RspBuf;
+		UINT64* RspData = (UINT64*)((UINT8*)RspBuf + sizeof(RESPONSE));
 		Rsp->Type = GET_MODULE_RESPONSE;
 		Rsp->DataLen = 8;
-		Rsp->Data = GetModuleBase(Req->Pid, Name);
+		*RspData = GetModuleBase(Req->Pid, Name);
 		Rsp->Status = 0;
 
-		MagicCrypt(RspBuf, sizeof(RESPONSE));
-
-		*ReqLen = sizeof(REQUEST) + Req->ExtraInfoLen;
-		*RspLen = sizeof(RESPONSE);
+		*RspLen = sizeof(RESPONSE) + 8;
 	}
 	else {
 		PrintLog("HandleRequest: unknown request");
-		*ReqLen = sizeof(REQUEST);
 		*RspLen = 0;
 	}
-	return TRUE;
 }
 
 VOID ClientThread(PVOID RawSock) {
@@ -99,7 +91,6 @@ VOID ClientThread(PVOID RawSock) {
 	UINT8 Buf[BUF_SIZE] = { 0 };
 	UINT8 SendBuf[BUF_SIZE] = { 0 };
 	UINT32 BufLen = 0;
-	UINT32 CutLen = 0;
 	UINT32 SendLen = 0;
 	while (TRUE) {
 		int r = recv(Sock, Buf + BufLen, BUF_SIZE - BufLen, 0);
@@ -107,18 +98,21 @@ VOID ClientThread(PVOID RawSock) {
 		PrintLog("ClientThread: recv len: %d", r);
 		BufLen += r;
 
-		// protocol
+		// header
 		PREQUEST Req = (PREQUEST)Buf;
 		if (BufLen < sizeof(REQUEST)) continue;
-		MagicCrypt(Buf, sizeof(REQUEST));
-		if (Req->DataLen > 8) continue;
+
+		// data
+		if (BufLen - sizeof(REQUEST) < Req->DataLen) continue;
 
 		// handle request
-		if (!HandleRequest(Buf, BufLen, SendBuf, &CutLen, &SendLen)) continue;
+		HandleRequest(Buf, SendBuf, &SendLen);
 		if (SendLen > 0) send(Sock, SendBuf, SendLen, 0);
 
-		RtlMoveMemory(Buf, Buf + CutLen, BufLen - CutLen);
-		BufLen -= CutLen;
+		// remove request
+		UINT32 TotalLen = sizeof(REQUEST) + Req->DataLen;
+		RtlMoveMemory(Buf, Buf + TotalLen, BufLen - TotalLen);
+		BufLen -= TotalLen;
 	}
 
 	PrintLog("ClientThread: client closed");

@@ -50,75 +50,61 @@ Memory::~Memory() {
 
 bool Memory::read_memory(uint64_t addr, void* buf, uint32_t len) {
 	if (!inited_) return false;
+	if (len > MAX_DATA_LEN) return false;
 
-	REQUEST req = { 0 };
-	req.Type = READ_MEMORY_REQUEST;
-	req.Pid = pid_;
-	req.DataLen = len;
-	req.ExtraInfoLen = 0;
-	req.Addr = addr;
-	req.Data = 0;
+	char sbuf[BUF_SIZE] = { 0 };
+	PREQUEST req = (PREQUEST)sbuf;
+	req->Type = READ_MEMORY_REQUEST;
+	req->Pid = pid_;
+	req->DataLen = len;
+	req->Addr = addr;
 
-	void* send_buf = &req;
-	MagicCrypt((uint8_t*)send_buf, sizeof(REQUEST));
-	send(sock_, (char*)send_buf, sizeof(REQUEST), 0);
+	int s = send(sock_, sbuf, sizeof(REQUEST) + len, 0);
 
 	char rbuf[BUF_SIZE];
-	int r = recv(sock_, rbuf, BUF_SIZE, 0);
-	if (r != sizeof(RESPONSE)) return false;
-	MagicCrypt((uint8_t*)rbuf, sizeof(RESPONSE));
-
 	PRESPONSE rsp = (PRESPONSE)rbuf;
+	uint32_t rlen = 0;
+	int r = 0;
+	do {
+		r = recv(sock_, rbuf + rlen, BUF_SIZE - rlen, 0);
+		if (r > 0) rlen += r;
+		if (rlen >= sizeof(RESPONSE) && rlen >= sizeof(RESPONSE) + rsp->DataLen) break;
+	} while (r > 0);
+	if (rlen != sizeof(RESPONSE) + len) return false;
+
 	if (rsp->Type != READ_MEMORY_RESPONSE) return false;
 	if (rsp->Status != 0) return false;
 
-	memcpy(buf, &rsp->Data, len);
-	return rsp->Status == 0;
-}
-
-bool Memory::read_array_memory(uint64_t addr, void* buf, uint32_t len, uint32_t cnt) {
-	if (!inited_) return false;
-	if (cnt <= 0 || cnt > 9999) return false;
-	for (uint32_t i = 0; i < cnt; i++) {
-		auto ret = read_memory(addr + i * len, (char*)buf + i * len, len);
-		if (!ret) return false;
-	}
+	memcpy(buf, rbuf + sizeof(RESPONSE), len);
 	return true;
 }
 
 bool Memory::write_memory(uint64_t addr, void* buf, uint32_t len) {
 	if (!inited_) return false;
+	if (len > MAX_DATA_LEN) return false;
 
-	REQUEST req = { 0 };
-	req.Type = WRITE_MEMORY_REQUEST;
-	req.Pid = pid_;
-	req.DataLen = len;
-	req.ExtraInfoLen = 0;
-	req.Addr = addr;
-	req.Data = 0;
-	memcpy(&req.Data, buf, len);
+	char sbuf[BUF_SIZE] = { 0 };
+	PREQUEST req = (PREQUEST)sbuf;
+	req->Type = WRITE_MEMORY_REQUEST;
+	req->Pid = pid_;
+	req->DataLen = len;
+	req->Addr = addr;
+	memcpy(sbuf + sizeof(REQUEST), buf, len);
 
-	void* send_buf = &req;
-	MagicCrypt((uint8_t*)send_buf, sizeof(REQUEST));
-	send(sock_, (char*)send_buf, sizeof(REQUEST), 0);
+	send(sock_, sbuf, sizeof(REQUEST) + len, 0);
 
 	char rbuf[BUF_SIZE];
-	int r = recv(sock_, rbuf, BUF_SIZE, 0);
-	if (r != sizeof(RESPONSE)) return false;
-	MagicCrypt((uint8_t*)rbuf, sizeof(RESPONSE));
-
 	PRESPONSE rsp = (PRESPONSE)rbuf;
-	return rsp->Status == 0;
-}
+	uint32_t rlen = 0;
+	int r = 0;
+	do {
+		r = recv(sock_, rbuf + rlen, BUF_SIZE - rlen, 0);
+		if (r > 0) rlen += r;
+		if (rlen >= sizeof(RESPONSE) && rlen >= sizeof(RESPONSE) + rsp->DataLen) break;
+	} while (r > 0);
+	if (rlen != sizeof(RESPONSE)) return false;
 
-bool Memory::write_array_memory(uint64_t addr, void* buf, uint32_t len, uint32_t cnt) {
-	if (!inited_) return false;
-	if (cnt <= 0 || cnt > 9999) return false;
-	for (uint32_t i = 0; i < cnt; i++) {
-		auto ret = write_memory(addr + i * len, (char*)buf + i * len, len);
-		if (!ret) return false;
-	}
-	return true;
+	return rsp->Status == 0;
 }
 
 uint64_t Memory::get_module_base(const std::wstring& name) {
@@ -129,27 +115,28 @@ uint64_t Memory::get_module_base(const std::wstring& name) {
 	memcpy(nbuf, name.c_str(), nlen);
 	if (nlen % 8 != 0) nlen += 8 - (nlen % 8);
 
-	REQUEST req = { 0 };
-	req.Type = GET_MODULE_REQUEST;
-	req.Pid = pid_;
-	req.DataLen = 0;
-	req.ExtraInfoLen = nlen;
-	req.Addr = 0;
-	req.Data = 0;
+	char sbuf[BUF_SIZE] = { 0 };
+	PREQUEST req = (PREQUEST)sbuf;
+	req->Type = GET_MODULE_REQUEST;
+	req->Pid = pid_;
+	req->DataLen = nlen;
+	req->Addr = 0;
+	memcpy(sbuf + sizeof(REQUEST), nbuf, nlen);
 
-	char* send_buf = new char[sizeof(REQUEST) + nlen];
-	memcpy(send_buf, &req, sizeof(REQUEST));
-	memcpy(send_buf + sizeof(REQUEST), nbuf, nlen);
-	MagicCrypt((uint8_t*)send_buf, sizeof(REQUEST) + nlen);
-	send(sock_, send_buf, sizeof(REQUEST) + nlen, 0);
-	delete[] send_buf;
+	send(sock_, sbuf, sizeof(REQUEST) + nlen, 0);
 
 	char rbuf[BUF_SIZE];
-	int r = recv(sock_, rbuf, BUF_SIZE, 0);
-	if (r != sizeof(RESPONSE)) return 0;
-	MagicCrypt((uint8_t*)rbuf, sizeof(RESPONSE));
-
 	PRESPONSE rsp = (PRESPONSE)rbuf;
+	uint32_t rlen = 0;
+	int r = 0;
+	do {
+		r = recv(sock_, rbuf + rlen, BUF_SIZE - rlen, 0);
+		if (r > 0) rlen += r;
+		if (rlen >= sizeof(RESPONSE) && rlen >= sizeof(RESPONSE) + rsp->DataLen) break;
+	} while (r > 0);
+	if (rlen != sizeof(RESPONSE) + 8) return false;
+
 	if (rsp->Type != GET_MODULE_RESPONSE) return 0;
-	return rsp->Data;
+	if (rsp->Status != 0) return false;
+	return *(uint64_t*)(rbuf + sizeof(RESPONSE));
 }
