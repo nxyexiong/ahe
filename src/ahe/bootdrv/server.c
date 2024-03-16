@@ -35,9 +35,13 @@ INT32 CreateListenSocket(UINT16 Port) {
 	return Sock;
 }
 
-VOID HandleRequest(UINT8* ReqBuf, UINT8* RspBuf, UINT32* RspLen) {
+VOID HandleRequest(UINT8* ReqBuf, UINT32 ReqBufLen, UINT8* RspBuf, UINT32* RspLen, UINT32* HandledLen) {
+	*HandledLen = 0;
+	*RspLen = 0;
+
 	PREQUEST Req = (PREQUEST)ReqBuf;
 	PVOID Data = ReqBuf + sizeof(REQUEST);
+
 	if (Req->Type == READ_MEMORY_REQUEST) {
 		PrintLog("HandleRequest: read process request");
 
@@ -49,9 +53,12 @@ VOID HandleRequest(UINT8* ReqBuf, UINT8* RspBuf, UINT32* RspLen) {
 		SIZE_T r = 0;
 		Rsp->Status = ReadProcessMemory(Req->Pid, (PVOID)Req->Addr, RspData, Req->DataLen, &r);
 
+		*HandledLen = sizeof(REQUEST);
 		*RspLen = sizeof(RESPONSE) + Req->DataLen;
 	}
 	else if (Req->Type == WRITE_MEMORY_REQUEST) {
+		if (ReqBufLen < sizeof(REQUEST) + Req->DataLen) return;
+
 		PrintLog("HandleRequest: write process request");
 
 		RtlZeroMemory(RspBuf, sizeof(RESPONSE));
@@ -61,9 +68,12 @@ VOID HandleRequest(UINT8* ReqBuf, UINT8* RspBuf, UINT32* RspLen) {
 		SIZE_T w = 0;
 		Rsp->Status = WriteProcessMemory(Req->Pid, (PVOID)Req->Addr, Data, Req->DataLen, &w);
 
+		*HandledLen = sizeof(REQUEST) + Req->DataLen;
 		*RspLen = sizeof(RESPONSE);
 	}
 	else if (Req->Type == GET_MODULE_REQUEST) {
+		if (ReqBufLen < sizeof(REQUEST) + Req->DataLen) return;
+
 		UINT8 Name[1024] = { 0 };
 		RtlCopyMemory(Name, Data, Req->DataLen);
 		PrintLog("HandleRequest: get module request, name = %ls", (UINT16*)Name);
@@ -76,11 +86,11 @@ VOID HandleRequest(UINT8* ReqBuf, UINT8* RspBuf, UINT32* RspLen) {
 		*RspData = GetModuleBase(Req->Pid, Name);
 		Rsp->Status = 0;
 
+		*HandledLen = sizeof(REQUEST) + Req->DataLen;
 		*RspLen = sizeof(RESPONSE) + 8;
 	}
 	else {
 		PrintLog("HandleRequest: unknown request");
-		*RspLen = 0;
 	}
 }
 
@@ -92,27 +102,25 @@ VOID ClientThread(PVOID RawSock) {
 	UINT8 SendBuf[BUF_SIZE] = { 0 };
 	UINT32 BufLen = 0;
 	UINT32 SendLen = 0;
+	UINT32 HandledLen = 0;
 	while (TRUE) {
 		int r = recv(Sock, Buf + BufLen, BUF_SIZE - BufLen, 0);
 		if (r <= 0) break;
 		PrintLog("ClientThread: recv len: %d", r);
 		BufLen += r;
 
-		// header
-		PREQUEST Req = (PREQUEST)Buf;
-		if (BufLen < sizeof(REQUEST)) continue;
-
-		// data
-		if (BufLen - sizeof(REQUEST) < Req->DataLen) continue;
-
 		// handle request
-		HandleRequest(Buf, SendBuf, &SendLen);
+		if (BufLen < sizeof(REQUEST)) continue;
+		HandleRequest(Buf, BufLen, SendBuf, &SendLen, &HandledLen);
+
+		// send response
 		if (SendLen > 0) send(Sock, SendBuf, SendLen, 0);
 
 		// remove request
-		UINT32 TotalLen = sizeof(REQUEST) + Req->DataLen;
-		RtlMoveMemory(Buf, Buf + TotalLen, BufLen - TotalLen);
-		BufLen -= TotalLen;
+		if (HandledLen > 0) {
+			RtlMoveMemory(Buf, Buf + HandledLen, BufLen - HandledLen);
+			BufLen -= HandledLen;
+		}
 	}
 
 	PrintLog("ClientThread: client closed");

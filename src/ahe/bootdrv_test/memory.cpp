@@ -59,7 +59,7 @@ bool Memory::read_memory(uint64_t addr, void* buf, uint32_t len) {
 	req->DataLen = len;
 	req->Addr = addr;
 
-	int s = send(sock_, sbuf, sizeof(REQUEST) + len, 0);
+	int s = send(sock_, sbuf, sizeof(REQUEST), 0);
 
 	char rbuf[BUF_SIZE];
 	PRESPONSE rsp = (PRESPONSE)rbuf;
@@ -113,7 +113,6 @@ uint64_t Memory::get_module_base(const std::wstring& name) {
 	char nbuf[512] = { 0 };
 	uint32_t nlen = (uint32_t)name.size() * sizeof(wchar_t);
 	memcpy(nbuf, name.c_str(), nlen);
-	if (nlen % 8 != 0) nlen += 8 - (nlen % 8);
 
 	char sbuf[BUF_SIZE] = { 0 };
 	PREQUEST req = (PREQUEST)sbuf;
