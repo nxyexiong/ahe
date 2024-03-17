@@ -1,5 +1,6 @@
 #include <iostream>
 #include <thread>
+#include <vector>
 #include <Windows.h>
 #include "memory.h"
 
@@ -57,29 +58,51 @@ bool test_read_free_memory(Memory* memory) {
 	return read == 4321;
 }
 
-Memory* thread_memory = nullptr;
-int read_cnt = 0;
 bool running = true;
-void read_thread() {
+void read_thread(Memory* memory, int* read_cnt) {
 	int value = 1234;
 	int read = 0;
 	while (running) {
-		thread_memory->read_memory((uint64_t)&value, &read, sizeof(int));
-		read_cnt++;
+		memory->read_memory((uint64_t)&value, &read, sizeof(int));
+		if (value == read) (*read_cnt)++;
 	}
 }
 
 int test_speed(Memory* memory) {
-	thread_memory = memory;
-	read_cnt = 0;
 	running = true;
 
-	std::thread testThread(read_thread);
+	int read_cnt = 0;
+	std::thread testThread(read_thread, memory, &read_cnt);
 	Sleep(1000);
 	running = false;
 	testThread.join();
 
 	return read_cnt;
+}
+
+int test_speed_multithread(int thread_cnt) {
+	int pid = GetCurrentProcessId();
+	running = true;
+
+	std::vector<int*> read_cnts;
+	std::vector<std::thread> threads;
+	for (int i = 0; i < thread_cnt; i++) {
+		Memory* memory = new Memory(pid);
+		int* read_cnt = new int(0);
+		read_cnts.push_back(read_cnt);
+		threads.push_back(std::thread(read_thread, memory, read_cnt));
+	}
+
+	Sleep(1000);
+	running = false;
+
+	int total_read_cnt = 0;
+	for (int i = 0; i < thread_cnt; i++) {
+		threads[i].join();
+		total_read_cnt += *read_cnts[i];
+	}
+
+	return total_read_cnt;
 }
 
 
@@ -128,8 +151,11 @@ int main() {
 		failCnt++;
 	}
 
-	int udpReadCnt = test_speed(&memory);
-	std::cout << "[+] test_speed: " << udpReadCnt << std::endl;
+	int readCnt = test_speed(&memory);
+	std::cout << "[+] test_speed: " << readCnt << std::endl;
+
+	readCnt = test_speed_multithread(10);
+	std::cout << "[+] test_speed_multithread: " << readCnt << std::endl;
 
 	if (test_read_null_memory(&memory)) {
 		std::cout << "[+] test_read_null_memory" << std::endl;
