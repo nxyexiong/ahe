@@ -73,11 +73,11 @@ int test_speed(Memory* memory) {
 
 	int read_cnt = 0;
 	std::thread testThread(read_thread, memory, &read_cnt);
-	Sleep(1000);
+	Sleep(5000);
 	running = false;
 	testThread.join();
 
-	return read_cnt;
+	return read_cnt / 5;
 }
 
 int test_speed_multithread(int thread_cnt) {
@@ -93,7 +93,7 @@ int test_speed_multithread(int thread_cnt) {
 		threads.push_back(std::thread(read_thread, memory, read_cnt));
 	}
 
-	Sleep(1000);
+	Sleep(5000);
 	running = false;
 
 	int total_read_cnt = 0;
@@ -102,7 +102,7 @@ int test_speed_multithread(int thread_cnt) {
 		total_read_cnt += *read_cnts[i];
 	}
 
-	return total_read_cnt;
+	return total_read_cnt / 5;
 }
 
 
@@ -154,7 +154,7 @@ int main() {
 	int readCnt = test_speed(&memory);
 	std::cout << "[+] test_speed: " << readCnt << std::endl;
 
-	readCnt = test_speed_multithread(10);
+	readCnt = test_speed_multithread(50);
 	std::cout << "[+] test_speed_multithread: " << readCnt << std::endl;
 
 	if (test_read_null_memory(&memory)) {

@@ -154,7 +154,8 @@ VOID ServerLoop(PVOID Params) {
 }
 
 VOID ServerMain() {
-	// init wsk
+	// init
+	berkeley_init();
 	NTSTATUS Status = KsInitialize();
 	if (!NT_SUCCESS(Status)) {
 		PrintLog("ServerMain: KsInitialize failed: %x", Status);

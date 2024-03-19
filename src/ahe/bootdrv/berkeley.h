@@ -33,6 +33,8 @@ extern "C" {
 	int recvfrom(int sockfd, void* buf, size_t len, int flags, struct sockaddr* src_addr, socklen_t* addrlen);
 	int closesocket(int sockfd);
 
+	void berkeley_init();
+
 #define socket  socket_connection
 
 #ifdef __cplusplus

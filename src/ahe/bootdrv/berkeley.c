@@ -7,8 +7,9 @@
 
 #define MEMORY_TAG            ' bsK'
 #define SOCKETFD_MAX          128
-#define TO_SOCKETFD(index)    ((index % SOCKETFD_MAX)  + 1)
-#define FROM_SOCKETFD(sockfd) ((sockfd)                - 1)
+#define TO_SOCKETFD(index)    ((index) + 1)
+#define FROM_SOCKETFD(sockfd) ((sockfd) - 1)
+#define GET_NEXTIDX(index)    ((index + 1) % SOCKETFD_MAX)
 
 //////////////////////////////////////////////////////////////////////////
 // Function prototypes.
@@ -58,7 +59,8 @@ KspUtilFreeAddrInfoEx(
 //
 
 PKSOCKET KsArray[SOCKETFD_MAX] = { 0 };
-ULONG    KsIndex = 0;
+ULONG KsIndex = 0;
+FAST_MUTEX KsMutex = { 0 };
 
 //////////////////////////////////////////////////////////////////////////
 // Private functions.
@@ -331,9 +333,55 @@ KspUtilFreeAddrInfoEx(
 	ExFreePoolWithTag(AddrInfo, MEMORY_TAG);
 }
 
+int AllocSockfd() {
+	int Sockfd = 0;
+	while (TRUE) {
+		ExAcquireFastMutex(&KsMutex);
+		if (KsArray[KsIndex] != NULL) {
+			KsIndex = GET_NEXTIDX(KsIndex);
+			ExReleaseFastMutex(&KsMutex);
+			LARGE_INTEGER Delay;
+			Delay.QuadPart = -1000000; // 100ms
+			KeDelayExecutionThread(KernelMode, FALSE, &Delay);
+		}
+		else {
+			KsArray[KsIndex] = (PKSOCKET)1; // occupy
+			Sockfd = TO_SOCKETFD(KsIndex);
+			KsIndex = GET_NEXTIDX(KsIndex);
+			ExReleaseFastMutex(&KsMutex);
+			break;
+		}
+	}
+	return Sockfd;
+}
+
+void FreeSockfd(int Sockfd) {
+	ExAcquireFastMutex(&KsMutex);
+	KsArray[FROM_SOCKETFD(Sockfd)] = NULL;
+	ExReleaseFastMutex(&KsMutex);
+}
+
+PKSOCKET GetSocketByFd(int Sockfd) {
+	PKSOCKET Sock = NULL;
+	ExAcquireFastMutex(&KsMutex);
+	Sock = KsArray[FROM_SOCKETFD(Sockfd)];
+	ExReleaseFastMutex(&KsMutex);
+	return Sock;
+}
+
+void SetSocketByFd(int Sockfd, PKSOCKET Sock) {
+	ExAcquireFastMutex(&KsMutex);
+	KsArray[FROM_SOCKETFD(Sockfd)] = Sock;
+	ExReleaseFastMutex(&KsMutex);
+}
+
 //////////////////////////////////////////////////////////////////////////
 // Public functions.
 //////////////////////////////////////////////////////////////////////////
+
+void berkeley_init() {
+	ExInitializeFastMutex(&KsMutex);
+}
 
 uint32_t htonl(uint32_t hostlong)
 {
@@ -476,6 +524,7 @@ int socket_connection(int domain, int type, int protocol)
 {
 	NTSTATUS Status;
 	PKSOCKET Socket;
+	int Sockfd = AllocSockfd();
 
 	Status = KsCreateConnectionSocket(
 		&Socket,
@@ -484,15 +533,11 @@ int socket_connection(int domain, int type, int protocol)
 		(ULONG)protocol
 	);
 
-	if (NT_SUCCESS(Status))
-	{
-		int sockfd = TO_SOCKETFD(KsIndex++);
-
-		KsArray[FROM_SOCKETFD(sockfd)] = Socket;
-
-		return sockfd;
+	if (NT_SUCCESS(Status)) {
+		SetSocketByFd(Sockfd, Socket);
+		return Sockfd;
 	}
-
+	FreeSockfd(Sockfd);
 	return -1;
 }
 
@@ -500,6 +545,7 @@ int socket_listen(int domain, int type, int protocol)
 {
 	NTSTATUS Status;
 	PKSOCKET Socket;
+	int Sockfd = AllocSockfd();
 
 	//
 	// WskSocket() returns STATUS_PROTOCOL_UNREACHABLE (0xC000023E)
@@ -513,15 +559,11 @@ int socket_listen(int domain, int type, int protocol)
 		protocol ? (ULONG)protocol : IPPROTO_TCP
 	);
 
-	if (NT_SUCCESS(Status))
-	{
-		int sockfd = TO_SOCKETFD(KsIndex++);
-
-		KsArray[FROM_SOCKETFD(sockfd)] = Socket;
-
-		return sockfd;
+	if (NT_SUCCESS(Status)) {
+		SetSocketByFd(Sockfd, Socket);
+		return Sockfd;
 	}
-
+	FreeSockfd(Sockfd);
 	return -1;
 }
 
@@ -529,6 +571,7 @@ int socket_datagram(int domain, int type, int protocol)
 {
 	NTSTATUS Status;
 	PKSOCKET Socket;
+	int Sockfd = AllocSockfd();
 
 	Status = KsCreateDatagramSocket(
 		&Socket,
@@ -537,15 +580,11 @@ int socket_datagram(int domain, int type, int protocol)
 		(ULONG)protocol
 	);
 
-	if (NT_SUCCESS(Status))
-	{
-		int sockfd = TO_SOCKETFD(KsIndex++);
-
-		KsArray[FROM_SOCKETFD(sockfd)] = Socket;
-
-		return sockfd;
+	if (NT_SUCCESS(Status)) {
+		SetSocketByFd(Sockfd, Socket);
+		return Sockfd;
 	}
-
+	FreeSockfd(Sockfd);
 	return -1;
 }
 
@@ -554,7 +593,7 @@ int connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen)
 	UNREFERENCED_PARAMETER(addrlen);
 
 	NTSTATUS Status;
-	PKSOCKET Socket = KsArray[FROM_SOCKETFD(sockfd)];
+	PKSOCKET Socket = GetSocketByFd(sockfd);
 
 	Status = KsConnect(Socket, (PSOCKADDR)addr);
 
@@ -575,7 +614,7 @@ int bind(int sockfd, const struct sockaddr* addr, socklen_t addrlen)
 	UNREFERENCED_PARAMETER(addrlen);
 
 	NTSTATUS Status;
-	PKSOCKET Socket = KsArray[FROM_SOCKETFD(sockfd)];
+	PKSOCKET Socket = GetSocketByFd(sockfd);
 
 	Status = KsBind(Socket, (PSOCKADDR)addr);
 
@@ -587,28 +626,25 @@ int bind(int sockfd, const struct sockaddr* addr, socklen_t addrlen)
 int accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen)
 {
 	NTSTATUS Status;
-	PKSOCKET Socket = KsArray[FROM_SOCKETFD(sockfd)];
+	PKSOCKET Socket = GetSocketByFd(sockfd);
+	int Sockfd = AllocSockfd();
 
 	PKSOCKET NewSocket;
 	Status = KsAccept(Socket, &NewSocket, NULL, (PSOCKADDR)addr);
 	*addrlen = sizeof(SOCKADDR);
 
-	if (NT_SUCCESS(Status))
-	{
-		int newsockfd = TO_SOCKETFD(KsIndex++);
-
-		KsArray[FROM_SOCKETFD(newsockfd)] = NewSocket;
-
-		return newsockfd;
+	if (NT_SUCCESS(Status)) {
+		SetSocketByFd(Sockfd, NewSocket);
+		return Sockfd;
 	}
-
+	FreeSockfd(Sockfd);
 	return -1;
 }
 
 int send(int sockfd, const void* buf, size_t len, int flags)
 {
 	NTSTATUS Status;
-	PKSOCKET Socket = KsArray[FROM_SOCKETFD(sockfd)];
+	PKSOCKET Socket = GetSocketByFd(sockfd);
 
 	ULONG Length = (ULONG)len;
 	Status = KsSend(Socket, (PVOID)buf, &Length, (ULONG)flags);
@@ -623,7 +659,7 @@ int sendto(int sockfd, const void* buf, size_t len, int flags, const struct sock
 	UNREFERENCED_PARAMETER(addrlen);
 
 	NTSTATUS Status;
-	PKSOCKET Socket = KsArray[FROM_SOCKETFD(sockfd)];
+	PKSOCKET Socket = GetSocketByFd(sockfd);
 
 	ULONG Length = (ULONG)len;
 	Status = KsSendTo(Socket, (PVOID)buf, &Length, (ULONG)flags, (PSOCKADDR)dest_addr);
@@ -636,7 +672,7 @@ int sendto(int sockfd, const void* buf, size_t len, int flags, const struct sock
 int recv(int sockfd, void* buf, size_t len, int flags)
 {
 	NTSTATUS Status;
-	PKSOCKET Socket = KsArray[FROM_SOCKETFD(sockfd)];
+	PKSOCKET Socket = GetSocketByFd(sockfd);
 
 	ULONG Length = (ULONG)len;
 	Status = KsRecv(Socket, (PVOID)buf, &Length, (ULONG)flags);
@@ -651,7 +687,7 @@ int recvfrom(int sockfd, void* buf, size_t len, int flags, struct sockaddr* src_
 	UNREFERENCED_PARAMETER(addrlen);
 
 	NTSTATUS Status;
-	PKSOCKET Socket = KsArray[FROM_SOCKETFD(sockfd)];
+	PKSOCKET Socket = GetSocketByFd(sockfd);
 
 	ULONG Length = (ULONG)len;
 	Status = KsRecvFrom(Socket, (PVOID)buf, &Length, (ULONG)flags, (PSOCKADDR)src_addr);
@@ -665,11 +701,11 @@ int recvfrom(int sockfd, void* buf, size_t len, int flags, struct sockaddr* src_
 int closesocket(int sockfd)
 {
 	NTSTATUS Status;
-	PKSOCKET Socket = KsArray[FROM_SOCKETFD(sockfd)];
+	PKSOCKET Socket = GetSocketByFd(sockfd);
 
 	Status = KsCloseSocket(Socket);
 
-	KsArray[FROM_SOCKETFD(sockfd)] = NULL;
+	SetSocketByFd(sockfd, NULL);
 
 	return NT_SUCCESS(Status)
 		? 0
