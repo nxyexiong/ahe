@@ -297,6 +297,43 @@ BOOLEAN WriteHookData(VOID* Func, UINT8* FuncOriginal) {
 }
 
 VOID Map(LIST_ENTRY* LoadOrderListHead) {
+    KLDR_DATA_TABLE_ENTRY* OverwriteTarget = NULL;
+    KLDR_DATA_TABLE_ENTRY* Acpiex = NULL;
+    VOID* AcpiexEntryPoint = NULL;
+
+    if (CURRENT_MODE == MODE_OVERWRITE) {
+        // find overwrite target
+        OverwriteTarget = GetModuleEntry(LoadOrderListHead, OVERWRITE_DRIVER);
+        if (!OverwriteTarget) {
+            MappingStatus = EFI_NOT_FOUND;
+            MappingErrorMsg = L"overwrite target is not found";
+            return;
+        }
+        if (OverwriteTarget->SizeOfImage < MappingSize) {
+            MappingStatus = EFI_UNSUPPORTED;
+            MappingErrorMsg = L"size is too large";
+        }
+        MappingBuffer = OverwriteTarget->DllBase;
+    } else if (CURRENT_MODE == MODE_NORMAL_MAPPING) {
+        // find acpiex in order to hook its entry to execute our entry
+        Acpiex = GetModuleEntry(LoadOrderListHead, L"acpiex.sys");
+        if (!Acpiex) {
+            MappingStatus = EFI_NOT_FOUND;
+            MappingErrorMsg = L"acpiex is not found";
+            return;
+        }
+        AcpiexEntryPoint = GetModuleEntryPoint(Acpiex->DllBase);
+        if (!AcpiexEntryPoint) {
+            MappingStatus = EFI_NOT_FOUND;
+            MappingErrorMsg = L"acpiex entry point is not found";
+            return;
+        }
+    } else {
+        MappingStatus = EFI_NOT_FOUND;
+        MappingErrorMsg = L"mode not supported";
+        return;
+    }
+
     // check buffer
     if (!MappingBuffer) {
         MappingStatus = EFI_NOT_READY;
@@ -330,14 +367,14 @@ VOID Map(LIST_ENTRY* LoadOrderListHead) {
     // fix relocation
     if (!FixRelocation()) {
         MappingStatus = EFI_UNSUPPORTED;
-        MappingErrorMsg = L"cannot fix relocation\r\n";
+        MappingErrorMsg = L"cannot fix relocation";
         return;
     }
 
     // fix import
     if (!FixImport(LoadOrderListHead)) {
         MappingStatus = EFI_UNSUPPORTED;
-        MappingErrorMsg = L"cannot fix import\r\n";
+        MappingErrorMsg = L"cannot fix import";
         return;
     }
 
@@ -345,35 +382,25 @@ VOID Map(LIST_ENTRY* LoadOrderListHead) {
     VOID* EntryPoint = GetModuleEntryPoint(MappingBuffer);
     if (!EntryPoint) {
         MappingStatus = EFI_NOT_FOUND;
-        MappingErrorMsg = L"entry point is not found\r\n";
-        return;
-    }
-    
-    // find acpiex in order to hook its entry to execute our entry
-    KLDR_DATA_TABLE_ENTRY* Acpiex = GetModuleEntry(
-        LoadOrderListHead, L"acpiex.sys");
-    if (!Acpiex) {
-        MappingStatus = EFI_NOT_FOUND;
-        MappingErrorMsg = L"acpiex is not found\r\n";
-        return;
-    }
-    VOID* AcpiexEntryPoint = GetModuleEntryPoint(Acpiex->DllBase);
-    if (!AcpiexEntryPoint) {
-        MappingStatus = EFI_NOT_FOUND;
-        MappingErrorMsg = L"acpiex entry point is not found\r\n";
+        MappingErrorMsg = L"entry point is not found";
         return;
     }
 
-    // hook acpiex entry
-    UINT8 AcpiexEntryPointOriginal[HOOK_ORI_SIZE];
-    MemCopy(AcpiexEntryPointOriginal, AcpiexEntryPoint, HOOK_ORI_SIZE);
-    TrampolineHook(EntryPoint, (UINT8*)AcpiexEntryPoint, NULL);
+    if (CURRENT_MODE == MODE_NORMAL_MAPPING) {
+        // hook acpiex entry
+        UINT8 AcpiexEntryPointOriginal[HOOK_ORI_SIZE];
+        MemCopy(AcpiexEntryPointOriginal, AcpiexEntryPoint, HOOK_ORI_SIZE);
+        TrampolineHook(EntryPoint, (UINT8*)AcpiexEntryPoint, NULL);
 
-    // write hooking data to payload
-    if (!WriteHookData(AcpiexEntryPoint, AcpiexEntryPointOriginal)) {
-        MappingStatus = EFI_UNSUPPORTED;
-        MappingErrorMsg = L"cannot write hook data\r\n";
-        return;
+        // write hooking data to payload
+        if (!WriteHookData(AcpiexEntryPoint, AcpiexEntryPointOriginal)) {
+            MappingStatus = EFI_UNSUPPORTED;
+            MappingErrorMsg = L"cannot write hook data";
+            return;
+        }
+    } else if (CURRENT_MODE == MODE_OVERWRITE) {
+        // overwrite entry point
+        OverwriteTarget->EntryPoint = EntryPoint;
     }
 
     MappingStatus = EFI_SUCCESS;

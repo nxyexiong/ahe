@@ -1,6 +1,13 @@
 #pragma once
 #include <Uefi.h>
 
+// statically setting mode here, then compile for different binaries
+#define MODE_NORMAL_MAPPING 1 // map by allocating memory
+#define MODE_OVERWRITE 2 // map by overwriting
+#define CURRENT_MODE MODE_OVERWRITE
+
+#define OVERWRITE_DRIVER L"PRM.sys"
+
 #define HOOK_ORI_SIZE 14 // JMP:6 + addr:8
 #define SEC_TO_MICRO(s) ((s) * 1000000)
 

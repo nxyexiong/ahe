@@ -186,14 +186,16 @@ EFI_STATUS EFIAPI ImgArchStartBootApplicationHook(
     }
     PrintLog(L"[+] OslFwpKernelSetupPhase1 hooked\r\n");
 
-    // hook BlImgAllocateImageBuffer
-    Status = HookBlImgAllocateImageBuffer(ImageBase, ImageSize);
-    if (EFI_ERROR(Status)) {
-        PrintLog(L"[-] cannot hook BlImgAllocateImageBuffer: %d\r\n", Status);
-        gBS->Stall(SEC_TO_MICRO(5));
-        gST->RuntimeServices->ResetSystem(EfiResetCold, Status, 0, NULL);
+    // hook BlImgAllocateImageBuffer in normal mapping mode
+    if (CURRENT_MODE == MODE_NORMAL_MAPPING) {
+        Status = HookBlImgAllocateImageBuffer(ImageBase, ImageSize);
+        if (EFI_ERROR(Status)) {
+            PrintLog(L"[-] cannot hook BlImgAllocateImageBuffer: %d\r\n", Status);
+            gBS->Stall(SEC_TO_MICRO(5));
+            gST->RuntimeServices->ResetSystem(EfiResetCold, Status, 0, NULL);
+        }
+        PrintLog(L"[+] BlImgAllocateImageBuffer hooked\r\n");
     }
-    PrintLog(L"[+] BlImgAllocateImageBuffer hooked\r\n");
 
     // hook ExitBootServices
     ExitBootServices = gBS->ExitBootServices;
