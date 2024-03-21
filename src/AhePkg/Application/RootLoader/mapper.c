@@ -314,6 +314,7 @@ VOID Map(LIST_ENTRY* LoadOrderListHead) {
             MappingErrorMsg = L"size is too large";
         }
         MappingBuffer = OverwriteTarget->DllBase;
+        MemZero(OverwriteTarget->DllBase, OverwriteTarget->SizeOfImage);
     } else if (CURRENT_MODE == MODE_NORMAL_MAPPING) {
         // find acpiex in order to hook its entry to execute our entry
         Acpiex = GetModuleEntry(LoadOrderListHead, L"acpiex.sys");

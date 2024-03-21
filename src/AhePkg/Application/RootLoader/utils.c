@@ -7,6 +7,10 @@
 
 #define MAX_PRINT_BUFFER_SIZE 1024
 
+VOID MemZero(VOID* Dest, UINTN Size) {
+    for (UINT8 *d = Dest; Size--; *d++ = 0);
+}
+
 VOID MemCopy(VOID* Dest, VOID* Src, UINTN Size) {
     for (UINT8 *d = Dest, *s = Src; Size--; *d++ = *s++);
 }
