@@ -5,7 +5,7 @@
 #define HOOK_ORI_SIZE 14 // JMP:6 + addr:8
 
 __declspec(dllexport) volatile UINT8 DriverEntryOriginal[HOOK_ORI_SIZE];
-__declspec(dllexport) volatile VOID** DriverEntry;
+__declspec(dllexport) volatile VOID** DriverEntry = NULL;
 
 VOID Main(PVOID Params) {
 	UNREFERENCED_PARAMETER(Params);
@@ -15,7 +15,8 @@ VOID Main(PVOID Params) {
 
 NTSTATUS MyDriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) {
 	// unhook
-	MemCopyWP((VOID*)DriverEntry, (VOID*)DriverEntryOriginal, HOOK_ORI_SIZE);
+	if (DriverEntry != NULL)
+		MemCopyWP((VOID*)DriverEntry, (VOID*)DriverEntryOriginal, HOOK_ORI_SIZE);
 
 	// run our code in a work item
 	NTSTATUS Status = StartWorkItem(Main, NULL);
@@ -23,5 +24,7 @@ NTSTATUS MyDriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath
 		PrintLog("StartWorkItem failed: %x", Status);
 
 	// call original
-	return ((PDRIVER_INITIALIZE)DriverEntry)(DriverObject, RegistryPath);
+	if (DriverEntry != NULL)
+		return ((PDRIVER_INITIALIZE)DriverEntry)(DriverObject, RegistryPath);
+	return STATUS_SUCCESS;
 }
