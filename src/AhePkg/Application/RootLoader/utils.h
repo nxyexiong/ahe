@@ -6,7 +6,7 @@
 #define MODE_OVERWRITE 2 // map by overwriting
 #define CURRENT_MODE MODE_OVERWRITE
 
-#define OVERWRITE_DRIVER L"UCPD.sys"
+#define OVERWRITE_DRIVER L"PRM.sys"
 
 #define HOOK_ORI_SIZE 14 // JMP:6 + addr:8
 #define SEC_TO_MICRO(s) ((s) * 1000000)

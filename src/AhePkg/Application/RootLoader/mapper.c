@@ -354,6 +354,10 @@ VOID Map(LIST_ENTRY* LoadOrderListHead) {
     IMAGE_NT_HEADERS64* NtHeader = (IMAGE_NT_HEADERS64*)((UINT8*)DosHeader + DosHeader->e_lfanew);
     IMAGE_SECTION_HEADER* SectionHeaders = (IMAGE_SECTION_HEADER*)((UINT8*)&NtHeader->OptionalHeader +
 	    NtHeader->FileHeader.SizeOfOptionalHeader);
+
+    // fix size of image if its overwrite mode
+    if (CURRENT_MODE == MODE_OVERWRITE)
+        NtHeader->OptionalHeader.SizeOfImage = OverwriteTarget->SizeOfImage;
     
     // copy header
     MemCopy(MappingBuffer, MappingContent, NtHeader->OptionalHeader.SizeOfHeaders);
