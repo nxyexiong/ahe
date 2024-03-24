@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <Windows.h>
 
 class Memory {
 public:
@@ -12,9 +13,7 @@ public:
 	uint64_t get_module_base(const std::wstring& name);
 
 private:
-	bool inited_;
 	uint32_t pid_;
 	SOCKET sock_;
-	struct sockaddr_in server_addr_;
-	int server_addr_len_;
+	HANDLE device_;
 };

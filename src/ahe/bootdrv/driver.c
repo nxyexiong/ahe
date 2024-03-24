@@ -1,5 +1,6 @@
 #include <ntddk.h>
 #include "server.h"
+#include "ioctl.h"
 #include "utils.h"
 
 #define HOOK_ORI_SIZE 14 // JMP:6 + addr:8
@@ -17,6 +18,10 @@ NTSTATUS MyDriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath
 	// unhook
 	if (DriverEntry != NULL)
 		MemCopyWP((VOID*)DriverEntry, (VOID*)DriverEntryOriginal, HOOK_ORI_SIZE);
+
+	// register device control if its overwrite mode
+	if (DriverEntry == NULL)
+		InitDeviceControl(DriverObject);
 
 	// run our code in a work item
 	NTSTATUS Status = StartWorkItem(Main, NULL);

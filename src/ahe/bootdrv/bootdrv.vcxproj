@@ -88,6 +88,7 @@
   <ItemGroup>
     <ClCompile Include="berkeley.c" />
     <ClCompile Include="driver.c" />
+    <ClCompile Include="ioctl.c" />
     <ClCompile Include="ksocket.c" />
     <ClCompile Include="memory.c" />
     <ClCompile Include="server.c" />
@@ -96,6 +97,7 @@
   <ItemGroup>
     <ClInclude Include="berkeley.h" />
     <ClInclude Include="defs.h" />
+    <ClInclude Include="ioctl.h" />
     <ClInclude Include="ksocket.h" />
     <ClInclude Include="memory.h" />
     <ClInclude Include="protocol.h" />
