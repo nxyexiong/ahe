@@ -94,16 +94,18 @@ BOOLEAN FixRelocation() {
     if (NtHeader->FileHeader.Characteristics & IMAGE_FILE_RELOCS_STRIPPED)
         return TRUE;
 
-    INT64 ImageBaseDelta = (UINT8*)MappingBuffer - (UINT8*)MappingBuffer;
+    INT64 ImageBaseDelta = (UINT8*)MappingBuffer - (UINT8*)NtHeader->OptionalHeader.ImageBase;
     if (ImageBaseDelta == 0)
         return TRUE;
 
     IMAGE_BASE_RELOCATION* BaseReloc = (IMAGE_BASE_RELOCATION*)((UINT8*)MappingBuffer +
         NtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress);
+    IMAGE_BASE_RELOCATION* BaseRelocEnd = (IMAGE_BASE_RELOCATION*)((UINT8*)BaseReloc +
+        NtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size);
     if (!BaseReloc)
         return FALSE;
 
-    while (BaseReloc->SizeOfBlock) {
+    while (BaseReloc < BaseRelocEnd) {
         UINT8* RelocBase = (UINT8*)MappingBuffer + BaseReloc->VirtualAddress;
         UINT32 RelocCnt = (BaseReloc->SizeOfBlock - 8) / 2;
         IMAGE_RELOC* Reloc = (IMAGE_RELOC*)(BaseReloc + 1);

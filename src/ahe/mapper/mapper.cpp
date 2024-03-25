@@ -153,12 +153,14 @@ bool Mapper::fix_relocation() {
 
 	auto base_reloc = (PIMAGE_BASE_RELOCATION)(map_image_base +
 		map_nt_header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress);
+	auto base_reloc_end = (PIMAGE_BASE_RELOCATION)((uint8_t*)base_reloc +
+		map_nt_header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size);
 	if (!base_reloc) {
 		printf("[-] cannot get base relocation\n");
 		return false;
 	}
 
-	while (base_reloc->SizeOfBlock) {
+	while (base_reloc < base_reloc_end) {
 		const auto reloc_base = map_image_base + base_reloc->VirtualAddress;
 		const auto reloc_cnt = (base_reloc->SizeOfBlock - 8) / 2;
 		auto reloc = reinterpret_cast<PIMAGE_RELOC>(base_reloc + 1);
