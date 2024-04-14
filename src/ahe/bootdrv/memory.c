@@ -1,6 +1,7 @@
 #include <ntifs.h>
 #include <Ntstrsafe.h>
 #include "defs.h"
+#include "utils.h"
 #include "memory.h"
 
 // physmem cp from, no attach:
@@ -212,78 +213,137 @@ NTSTATUS WriteProcessMemory(int pid, PVOID Address, PVOID AllocatedBuffer, SIZE_
 
 // use physmem to read peb, no attach
 UINT64 GetModuleBase(UINT32 Pid, UINT8* Name) {
-	PEPROCESS Process = NULL;
+	PrintLog("GetModuleBase: %d, %ws", Pid, (WCHAR*)Name);
+
 	UNICODE_STRING Se;
 	RtlInitUnicodeString(&Se, (WCHAR*)Name);
+
 	SIZE_T r = 0;
-	if (NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)Pid, &Process))) {
-		BOOLEAN IsWow64 = (PsGetProcessWow64Process(Process) != NULL) ? TRUE : FALSE;
-		if (IsWow64) {
-			PPEB32 pPeb32 = (PPEB32)PsGetProcessWow64Process(Process);
-			if (!pPeb32) return 0;
-
-			PEB32 Peb32 = { 0 };
-			NTSTATUS Status = ReadProcessMemory(Pid, (PVOID)pPeb32, &Peb32, sizeof(Peb32), &r);
-			if (!NT_SUCCESS(Status)) return 0;
-
-			PEB_LDR_DATA32 Ldr = { 0 };
-			Status = ReadProcessMemory(Pid, (PVOID)Peb32.Ldr, &Ldr, sizeof(Ldr), &r);
-			if (!NT_SUCCESS(Status)) return 0;
-
-			PLIST_ENTRY32 pEntry = (PLIST_ENTRY32)Ldr.InLoadOrderModuleList.Flink;
-			LDR_DATA_TABLE_ENTRY32 Entry = { 0 };
-
-			do {
-				Status = ReadProcessMemory(Pid,
-					(PVOID)CONTAINING_RECORD(pEntry, LDR_DATA_TABLE_ENTRY32, InLoadOrderLinks), &Entry, sizeof(Entry), &r);
-				if (!NT_SUCCESS(Status)) return 0;
-
-				WCHAR Buffer[512] = { 0 };
-				if (Entry.BaseDllName.Length > 250) return 0;
-				Status = ReadProcessMemory(Pid, (PVOID)Entry.BaseDllName.Buffer, Buffer, sizeof(Buffer), &r);
-				if (!NT_SUCCESS(Status)) return 0;
-
-				UNICODE_STRING Ustr;
-				RtlUnicodeStringInit(&Ustr, Buffer);
-				if (RtlCompareUnicodeString(&Ustr, &Se, TRUE) == 0)
-					return (UINT64)Entry.DllBase;
-
-				pEntry = (PLIST_ENTRY32)Entry.InLoadOrderLinks.Flink;
-			} while (pEntry != (PLIST_ENTRY32)Ldr.InLoadOrderModuleList.Flink);
-		}
-		else {
-			PPEB pPeb = PsGetProcessPeb(Process);
-			if (!pPeb) return 0;
-
-			PEB Peb = { 0 };
-			NTSTATUS Status = ReadProcessMemory(Pid, (PVOID)pPeb, &Peb, sizeof(Peb), &r);
-			if (!NT_SUCCESS(Status)) return 0;
-
-			PEB_LDR_DATA Ldr = { 0 };
-			Status = ReadProcessMemory(Pid, (PVOID)Peb.Ldr, &Ldr, sizeof(Ldr), &r);
-			if (!NT_SUCCESS(Status)) return 0;
-
-			PLIST_ENTRY pEntry = Ldr.InMemoryOrderModuleList.Flink;
-			LDR_DATA_TABLE_ENTRY Entry = { 0 };
-
-			do {
-				Status = ReadProcessMemory(Pid,
-					(PVOID)CONTAINING_RECORD(pEntry, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks), &Entry, sizeof(Entry), &r);
-				if (!NT_SUCCESS(Status)) return 0;
-
-				WCHAR Buffer[512] = { 0 };
-				if (Entry.BaseDllName.Length > 250) return 0;
-				Status = ReadProcessMemory(Pid, (PVOID)Entry.BaseDllName.Buffer, Buffer, sizeof(Buffer), &r);
-				if (!NT_SUCCESS(Status)) return 0;
-
-				UNICODE_STRING Ustr;
-				RtlUnicodeStringInit(&Ustr, Buffer);
-				if (RtlCompareUnicodeString(&Ustr, &Se, TRUE) == 0)
-					return (UINT64)Entry.DllBase;
-
-				pEntry = Entry.InMemoryOrderLinks.Flink;
-			} while (pEntry != Ldr.InMemoryOrderModuleList.Flink);
-		}
+	PEPROCESS Process = NULL;
+	NTSTATUS Status = PsLookupProcessByProcessId((HANDLE)Pid, &Process);
+	if (!NT_SUCCESS(Status)) {
+		PrintLog("GetModuleBase: PsLookupProcessByProcessId failed %d", Status);
+		return 0;
 	}
+
+	BOOLEAN IsWow64 = (PsGetProcessWow64Process(Process) != NULL) ? TRUE : FALSE;
+	PrintLog("GetModuleBase: IsWow64 %d", (UINT32)IsWow64);
+
+	if (IsWow64) {
+		PPEB32 pPeb32 = (PPEB32)PsGetProcessWow64Process(Process);
+		if (!pPeb32) {
+			PrintLog("GetModuleBase: PsGetProcessWow64Process failed");
+			return 0;
+		}
+
+		PEB32 Peb32 = { 0 };
+		Status = ReadProcessMemory(Pid, (PVOID)pPeb32, &Peb32, sizeof(Peb32), &r);
+		if (!NT_SUCCESS(Status)) {
+			PrintLog("GetModuleBase: cannot read PEB32: %d", Status);
+			return 0;
+		}
+
+		PEB_LDR_DATA32 Ldr = { 0 };
+		Status = ReadProcessMemory(Pid, (PVOID)Peb32.Ldr, &Ldr, sizeof(Ldr), &r);
+		if (!NT_SUCCESS(Status)) {
+			PrintLog("GetModuleBase: cannot read PEB32.Ldr: %d", Status);
+			return 0;
+		}
+
+		PLIST_ENTRY32 pEntry = (PLIST_ENTRY32)Ldr.InLoadOrderModuleList.Flink;
+		LDR_DATA_TABLE_ENTRY32 Entry = { 0 };
+
+		do {
+			Status = ReadProcessMemory(Pid,
+				(PVOID)CONTAINING_RECORD(pEntry, LDR_DATA_TABLE_ENTRY32, InLoadOrderLinks), &Entry, sizeof(Entry), &r);
+			if (!NT_SUCCESS(Status)) {
+				PrintLog("GetModuleBase: cannot read Entry: %d", Status);
+				return 0;
+			}
+
+			WCHAR Buffer[1024] = { 0 };
+			if (Entry.BaseDllName.Length <= 0 || Entry.BaseDllName.Length > 500 || !Entry.BaseDllName.Buffer) {
+				PrintLog("GetModuleBase: invalid BaseDllName: %d, %llu",
+					(int)Entry.BaseDllName.Length, (UINT64)Entry.BaseDllName.Buffer);
+				goto Next32;
+			}
+
+			Status = ReadProcessMemory(Pid, (PVOID)Entry.BaseDllName.Buffer, Buffer, sizeof(Buffer), &r);
+			if (!NT_SUCCESS(Status)) {
+				PrintLog("GetModuleBase: cannot read BaseDllName.Buffer: %d", Status);
+				goto Next32;
+			}
+
+			PrintLog("GetModuleBase: check %ws", Buffer);
+			UNICODE_STRING Ustr;
+			RtlUnicodeStringInit(&Ustr, Buffer);
+			if (RtlCompareUnicodeString(&Ustr, &Se, TRUE) == 0) {
+				PrintLog("GetModuleBase: found %llu", (UINT64)Entry.DllBase);
+				return (UINT64)Entry.DllBase;
+			}
+
+		Next32:
+			pEntry = (PLIST_ENTRY32)Entry.InLoadOrderLinks.Flink;
+		} while (pEntry != (PLIST_ENTRY32)Ldr.InLoadOrderModuleList.Flink);
+	}
+	else {
+		PPEB pPeb = PsGetProcessPeb(Process);
+		if (!pPeb) {
+			PrintLog("GetModuleBase: PsGetProcessPeb failed");
+			return 0;
+		}
+
+		PEB Peb = { 0 };
+		Status = ReadProcessMemory(Pid, (PVOID)pPeb, &Peb, sizeof(Peb), &r);
+		if (!NT_SUCCESS(Status)) {
+			PrintLog("GetModuleBase: cannot read PEB: %d", Status);
+			return 0;
+		}
+
+		PEB_LDR_DATA Ldr = { 0 };
+		Status = ReadProcessMemory(Pid, (PVOID)Peb.Ldr, &Ldr, sizeof(Ldr), &r);
+		if (!NT_SUCCESS(Status)) {
+			PrintLog("GetModuleBase: cannot read PEB.Ldr: %d", Status);
+			return 0;
+		}
+
+		PLIST_ENTRY pEntry = Ldr.InMemoryOrderModuleList.Flink;
+		LDR_DATA_TABLE_ENTRY Entry = { 0 };
+
+		do {
+			Status = ReadProcessMemory(Pid,
+				(PVOID)CONTAINING_RECORD(pEntry, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks), &Entry, sizeof(Entry), &r);
+			if (!NT_SUCCESS(Status)) {
+				PrintLog("GetModuleBase: cannot read Entry: %d", Status);
+				return 0;
+			}
+
+			WCHAR Buffer[1024] = { 0 };
+			if (Entry.BaseDllName.Length <= 0 || Entry.BaseDllName.Length > 500 || !Entry.BaseDllName.Buffer) {
+				PrintLog("GetModuleBase: invalid BaseDllName: %d, %llu",
+					(int)Entry.BaseDllName.Length, (UINT64)Entry.BaseDllName.Buffer);
+				goto Next;
+			}
+
+			Status = ReadProcessMemory(Pid, (PVOID)Entry.BaseDllName.Buffer, Buffer, sizeof(Buffer), &r);
+			if (!NT_SUCCESS(Status)) {
+				PrintLog("GetModuleBase: cannot read BaseDllName.Buffer: %d", Status);
+				goto Next;
+			}
+
+			PrintLog("GetModuleBase: check %ws", Buffer);
+			UNICODE_STRING Ustr;
+			RtlUnicodeStringInit(&Ustr, Buffer);
+			if (RtlCompareUnicodeString(&Ustr, &Se, TRUE) == 0) {
+				PrintLog("GetModuleBase: found %llu", (UINT64)Entry.DllBase);
+				return (UINT64)Entry.DllBase;
+			}
+
+		Next:
+			pEntry = Entry.InMemoryOrderLinks.Flink;
+		} while (pEntry != Ldr.InMemoryOrderModuleList.Flink);
+	}
+
+	PrintLog("GetModuleBase: not found");
 	return 0;
 }
