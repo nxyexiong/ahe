@@ -132,6 +132,17 @@ EFI_STATUS EFIAPI HookOslFwpKernelSetupPhase1(
 {
     // in winload.efi:
     // OslMain(entry) -> OslpMain -> OslExecuteTransition -> OslFwpKernelSetupPhase1
+    // OslpMain:
+    // - should be called at the end of OslMain with one parameter
+    // - the return value of OslMain should be the return value of OslpMain
+    // OslExecuteTransition:
+    // - should be called at the near end of OslpMain without any parameter
+    // - should be called inside a check like if (v2 >= 0 && v8)
+    // OslFwpKernelSetupPhase1:
+    // - should be called in the middle of OslExecuteTransition with one parameter
+    // - should be called after BlIpmiLogCheckPoint with the first parameter equals to 2
+    // - it should be one of the few functions that calls BlFwGetSystemTable with
+    //   the first parameter equals to FW_TABLE_RSDT(1)
 
     // find OslExecuteTransition
     // 74 07: jz 07
@@ -145,12 +156,12 @@ EFI_STATUS EFIAPI HookOslFwpKernelSetupPhase1(
         (UINTN)Addr - (UINTN)WinloadImageBase);
 
     // find OslFwpKernelSetupPhase1 in OslExecuteTransition
-    // 48 8B CD: mov rcx, rbp ; LoaderBlock
+    // 48 8B CE: mov rcx, rsi ; LoaderBlock
     // E8 xxxx: call OslFwpKernelSetupPhase1
-    // 8B F0: mov esi, eax
+    // 8B D8: mov ebx, eax
     // 85 C0: test eax, eax
-    Addr = FindPattern(Addr, 0x50,
-        "\x48\x8B\xCD\xE8\x00\x00\x00\x00\x8B\xF0\x85\xC0", "xxxx????xxxx");
+    Addr = FindPattern(Addr, 0x100,
+        "\x48\x8B\xCE\xE8\x00\x00\x00\x00\x8B\xD8\x85\xC0", "xxxx????xxxx");
     if (!Addr) return EFI_NOT_FOUND;
     CallOffset = *(INT32*)((UINT8*)Addr + 4);
     Addr = (VOID*)((UINT8*)Addr + 8 + CallOffset);
