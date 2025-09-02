@@ -13,32 +13,42 @@ Average hacking enjoyer
  - boot from it
 
 # how to setup edk2
-- install vs2019 with VC++ development tools
+- install vs2022 with VC++ development tools
 - install nasm 2.16 from http://www.nasm.us to c:\nasm and add it to system environment variable 'PATH'
-- install asl 20230628 from https://www.intel.com/content/www/us/en/developer/topic-technology/open/acpica/download.html to c:\asl
-- install python 3.8.x
+- install asl (windows binary tools) 20250404 from https://www.intel.com/content/www/us/en/developer/topic-technology/open/acpica/download.html to c:\asl
+- install python 3.10.x
 - create a working directory, for example, c:\workspace
 - checkout edk2
 ```
- - cd c:\workspace
- - git clone -b edk2-stable202111 --recurse-submodules https://github.com/tianocore/edk2
+ - run command: cd c:\workspace
+ - run command: git clone -b edk2-stable202508 --recurse-submodules https://github.com/tianocore/edk2
 ```
 - run test build
 ```
- - open Developer Command Prompt for VS2019
- - cd c:\workspace\edk2
- - edksetup.bat Rebuild
- - notepad Conf\target.txt
- - ACTIVE_PLATFORM       = MdeModulePkg/MdeModulePkg.dsc
- - TOOL_CHAIN_TAG        = VS2019
+ - open Developer Command Prompt for VS2022
+ - run command: cd c:\workspace\edk2
+ - run command: edksetup.bat Rebuild
+ - run command: notepad Conf\target.txt
+ - modify the followings:
+   - ACTIVE_PLATFORM       = MdeModulePkg/MdeModulePkg.dsc
+   - TARGET                = NOOPT
+   - TARGET_ARCH           = X64
+   - TOOL_CHAIN_TAG        = VS2022
  - save
- - edksetup.bat
- - build -a X64 -t VS2019 -b NOOPT
+ - run command: edksetup.bat
+ - run command: build
 ```
 - build AhePkg
 ```
  - copy AhePkg to edk2 directory
- - build -a X64 -t VS2019 -b NOOPT -p AhePkg\AhePkg.dsc
+ - run command: notepad Conf\target.txt
+ - modify the followings:
+   - ACTIVE_PLATFORM       = AhePkg/AhePkg.dsc
+   - TARGET                = NOOPT
+   - TARGET_ARCH           = X64
+   - TOOL_CHAIN_TAG        = VS2022
+ - save
+ - run command: build
 ```
 
 # how to bypass secure boot

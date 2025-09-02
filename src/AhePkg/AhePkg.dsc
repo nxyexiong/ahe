@@ -34,6 +34,9 @@
 !endif
     DebugPrintErrorLevelLib|MdePkg/Library/BaseDebugPrintErrorLevelLib/BaseDebugPrintErrorLevelLib.inf
     RegisterFilterLib|MdePkg/Library/RegisterFilterLibNull/RegisterFilterLibNull.inf
+    # stack check
+    StackCheckLib|MdePkg/Library/StackCheckLib/StackCheckLib.inf
+    StackCheckFailureHookLib|MdePkg/Library/StackCheckFailureHookLibNull/StackCheckFailureHookLibNull.inf
 
 [Components]
     AhePkg/Application/RootLoader/RootLoader.inf
