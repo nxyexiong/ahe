@@ -62,6 +62,17 @@ Average hacking enjoyer
  - save the .cap
  - flash it and youre done (for asus mbs that have USB BIOS FlashBack, you can simply just place it into a FAT32 usb drive and insert it into the port and flash, but for other mbs you have to find other ways around)
 
+# how to self-sign .efi and enroll it to secure boot
+ - install openssl using command ```winget install openssl```
+ - add ```C:\Program Files\OpenSSL-Win64\bin``` to system environment variable 'PATH'
+ - open Developer Command Prompt for VS2022
+ - ```openssl genrsa -out private.key 2048```
+ - ```openssl req -new -x509 -sha256 -days 3650 -key private.key -out public.crt -subj "/CN=MyCN/"```
+ - ```openssl pkcs12 -export -out cert.pfx -inkey private.key -in public.crt``` (and set a password for it)
+ - ```signtool sign /fd SHA256 /f cert.pfx /p <password> /tr http://timestamp.digicert.com /td SHA256 RootLoader.efi```
+ - ```openssl x509 -outform DER -in public.crt -out cert.cer```
+ - put ```cert.cer``` into a FAT32 usb drive, enroll it in BIOS accordingly
+
 # credits
  - [drvmap](https://github.com/not-wlan/drvmap)
  - [umap](https://github.com/btbd/umap)
