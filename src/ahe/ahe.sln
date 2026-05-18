@@ -15,6 +15,10 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "bootdrv", "bootdrv\bootdrv.
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "bootdrv_test", "bootdrv_test\bootdrv_test.vcxproj", "{83664B0C-FC81-4BF6-B22C-0F8A3400EABB}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "memtool", "memtool\memtool.vcxproj", "{5A7B3C1D-2E4F-4A6B-8C9D-1E2F3A4B5C6D}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "memtool_cli", "memtool_cli\memtool_cli.vcxproj", "{6B8C4D2E-3F50-4B7C-9D0E-2F3A4B5C6D7E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -47,6 +51,14 @@ Global
 		{83664B0C-FC81-4BF6-B22C-0F8A3400EABB}.Debug|x64.Build.0 = Debug|x64
 		{83664B0C-FC81-4BF6-B22C-0F8A3400EABB}.Release|x64.ActiveCfg = Release|x64
 		{83664B0C-FC81-4BF6-B22C-0F8A3400EABB}.Release|x64.Build.0 = Release|x64
+		{5A7B3C1D-2E4F-4A6B-8C9D-1E2F3A4B5C6D}.Debug|x64.ActiveCfg = Debug|x64
+		{5A7B3C1D-2E4F-4A6B-8C9D-1E2F3A4B5C6D}.Debug|x64.Build.0 = Debug|x64
+		{5A7B3C1D-2E4F-4A6B-8C9D-1E2F3A4B5C6D}.Release|x64.ActiveCfg = Release|x64
+		{5A7B3C1D-2E4F-4A6B-8C9D-1E2F3A4B5C6D}.Release|x64.Build.0 = Release|x64
+		{6B8C4D2E-3F50-4B7C-9D0E-2F3A4B5C6D7E}.Debug|x64.ActiveCfg = Debug|x64
+		{6B8C4D2E-3F50-4B7C-9D0E-2F3A4B5C6D7E}.Debug|x64.Build.0 = Debug|x64
+		{6B8C4D2E-3F50-4B7C-9D0E-2F3A4B5C6D7E}.Release|x64.ActiveCfg = Release|x64
+		{6B8C4D2E-3F50-4B7C-9D0E-2F3A4B5C6D7E}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
