@@ -8,28 +8,54 @@
 
 #include "memtool.h"
 
+// Mirror records from protocol.h. memtool returns raw bytes from list_* APIs.
+#pragma pack(push, 1)
+typedef struct {
+    uint64_t Base;
+    uint64_t Size;
+    uint32_t TimeDateStamp;
+    uint32_t CheckSum;
+    uint32_t NameLen;
+    uint32_t Reserved;
+} CLI_MODULE_RECORD;
+
+typedef struct {
+    uint64_t Base;
+    uint64_t Size;
+    uint32_t State;
+    uint32_t Protect;
+    uint32_t Type;
+    uint32_t Reserved;
+} CLI_REGION_RECORD;
+#pragma pack(pop)
+
 static void usage() {
     fprintf(stderr,
         "memtool_cli - memory operations via memtool.dll\n"
         "\n"
-        "usage:\n"
+        "Legacy (physmem) ops:\n"
         "  memtool_cli read   <pid> <addr_hex> <len> [outfile]\n"
-        "      Read <len> bytes from <addr_hex> in <pid>.\n"
-        "      Writes to <outfile> if given, otherwise hex-dumps to stdout.\n"
-        "\n"
         "  memtool_cli write  <pid> <addr_hex> <hex_bytes>\n"
-        "      Write the given hex byte string (e.g. DEADBEEF) to <addr_hex>.\n"
-        "\n"
         "  memtool_cli write-file <pid> <addr_hex> <infile>\n"
-        "      Write the contents of <infile> to <addr_hex>.\n"
-        "\n"
         "  memtool_cli module <pid> <module_name>\n"
-        "      Print the base address of <module_name> in <pid>.\n"
-        "      <module_name> is interpreted as a wide-char string (utf-8 -> wide).\n"
         "\n"
-        "  memtool_cli dump   <pid> <outfile>\n"
-        "      Scan and dump the entire user-mode address space of <pid>.\n"
-        "      Output file format: see memtool.h (mem_dump_process).\n");
+        "Attach-based VM ops:\n"
+        "  memtool_cli vmread  <pid> <addr_hex> <len> [outfile]\n"
+        "  memtool_cli vmwrite <pid> <addr_hex> <hex_bytes>\n"
+        "\n"
+        "Enumeration:\n"
+        "  memtool_cli modules <pid>\n"
+        "  memtool_cli regions <pid>\n"
+        "  memtool_cli procinfo <pid>\n"
+        "\n"
+        "Minidump (WinDbg .dmp):\n"
+        "  memtool_cli dump <pid> <outfile.dmp>\n"
+        "\n"
+        "Kernel dump trigger (CRASHES THE WHOLE SYSTEM \u2014 reboot!):\n"
+        "  memtool_cli bsod [pid]\n"
+        "      Asks the driver to KeBugCheckEx(0xE2, pid, 0, 0, 0). Windows\n"
+        "      writes a crash dump per HKLM\\SYSTEM\\CurrentControlSet\\Control\\CrashControl\n"
+        "      settings (MEMORY.DMP / kernel/complete/active).\n");
 }
 
 static int parse_u64(const char* s, uint64_t* out) {
@@ -93,7 +119,7 @@ static void hex_dump(uint64_t base, const uint8_t* data, uint32_t len) {
     }
 }
 
-static int cmd_read(int argc, char** argv) {
+static int do_read_like(int argc, char** argv, int use_vm) {
     if (argc < 5 || argc > 6) { usage(); return 2; }
     uint32_t pid; uint64_t addr; uint32_t len;
     if (!parse_u32(argv[2], &pid) || !parse_u64(argv[3], &addr) || !parse_u32(argv[4], &len)) {
@@ -105,10 +131,10 @@ static int cmd_read(int argc, char** argv) {
     uint8_t* buf = (uint8_t*)malloc(len);
     if (!buf) { mem_close(h); fprintf(stderr, "oom\n"); return 1; }
 
-    int ok = mem_read(h, addr, buf, len);
+    int ok = use_vm ? mem_vm_read(h, addr, buf, len) : mem_read(h, addr, buf, len);
     int rc = 0;
     if (!ok) {
-        fprintf(stderr, "mem_read failed\n");
+        fprintf(stderr, "read failed\n");
         rc = 1;
     } else if (argc == 6) {
         FILE* f = NULL;
@@ -128,7 +154,7 @@ static int cmd_read(int argc, char** argv) {
     return rc;
 }
 
-static int cmd_write(int argc, char** argv) {
+static int do_write_like(int argc, char** argv, int use_vm) {
     if (argc != 5) { usage(); return 2; }
     uint32_t pid; uint64_t addr;
     if (!parse_u32(argv[2], &pid) || !parse_u64(argv[3], &addr)) { usage(); return 2; }
@@ -139,8 +165,8 @@ static int cmd_write(int argc, char** argv) {
 
     MEM_HANDLE h = mem_open(pid);
     if (!h) { free(buf); fprintf(stderr, "mem_open failed\n"); return 1; }
-    int ok = mem_write(h, addr, buf, len);
-    if (!ok) fprintf(stderr, "mem_write failed\n");
+    int ok = use_vm ? mem_vm_write(h, addr, buf, len) : mem_write(h, addr, buf, len);
+    if (!ok) fprintf(stderr, "write failed\n");
     else fprintf(stderr, "wrote %u bytes to 0x%llx\n", len, (unsigned long long)addr);
     mem_close(h);
     free(buf);
@@ -197,6 +223,99 @@ static int cmd_module(int argc, char** argv) {
     return 0;
 }
 
+static int cmd_modules(int argc, char** argv) {
+    if (argc != 3) { usage(); return 2; }
+    uint32_t pid;
+    if (!parse_u32(argv[2], &pid)) { usage(); return 2; }
+
+    MEM_HANDLE h = mem_open(pid);
+    if (!h) { fprintf(stderr, "mem_open failed\n"); return 1; }
+    uint32_t blen = 0;
+    uint8_t* buf = mem_list_modules(h, &blen);
+    if (!buf) { mem_close(h); fprintf(stderr, "list_modules failed\n"); return 1; }
+
+    printf("%-18s %-12s %-10s %-10s %s\n", "BASE", "SIZE", "TIMESTAMP", "CHECKSUM", "PATH");
+    uint32_t pos = 0;
+    while (pos + sizeof(CLI_MODULE_RECORD) <= blen) {
+        CLI_MODULE_RECORD* r = (CLI_MODULE_RECORD*)(buf + pos);
+        pos += sizeof(CLI_MODULE_RECORD);
+        if (pos + r->NameLen > blen) break;
+        wchar_t wpath[1024] = { 0 };
+        uint32_t copy = r->NameLen;
+        if (copy >= sizeof(wpath)) copy = sizeof(wpath) - 2;
+        memcpy(wpath, buf + pos, copy);
+        printf("0x%016llx 0x%-10llx 0x%08x 0x%08x %ls\n",
+               (unsigned long long)r->Base, (unsigned long long)r->Size,
+               r->TimeDateStamp, r->CheckSum, wpath);
+        pos += r->NameLen;
+    }
+    mem_free_buffer(buf);
+    mem_close(h);
+    return 0;
+}
+
+static int cmd_regions(int argc, char** argv) {
+    if (argc != 3) { usage(); return 2; }
+    uint32_t pid;
+    if (!parse_u32(argv[2], &pid)) { usage(); return 2; }
+
+    MEM_HANDLE h = mem_open(pid);
+    if (!h) { fprintf(stderr, "mem_open failed\n"); return 1; }
+    uint32_t blen = 0;
+    uint8_t* buf = mem_list_regions(h, &blen);
+    if (!buf) { mem_close(h); fprintf(stderr, "list_regions failed\n"); return 1; }
+
+    printf("%-18s %-12s %-10s %-10s %-10s\n", "BASE", "SIZE", "STATE", "PROTECT", "TYPE");
+    uint32_t n = blen / sizeof(CLI_REGION_RECORD);
+    for (uint32_t i = 0; i < n; i++) {
+        CLI_REGION_RECORD* r = (CLI_REGION_RECORD*)(buf + i * sizeof(CLI_REGION_RECORD));
+        printf("0x%016llx 0x%-10llx 0x%08x 0x%08x 0x%08x\n",
+               (unsigned long long)r->Base, (unsigned long long)r->Size,
+               r->State, r->Protect, r->Type);
+    }
+    mem_free_buffer(buf);
+    mem_close(h);
+    return 0;
+}
+
+static int cmd_procinfo(int argc, char** argv) {
+    if (argc != 3) { usage(); return 2; }
+    uint32_t pid;
+    if (!parse_u32(argv[2], &pid)) { usage(); return 2; }
+
+    MEM_HANDLE h = mem_open(pid);
+    if (!h) { fprintf(stderr, "mem_open failed\n"); return 1; }
+    int wow = mem_is_wow64(h);
+    mem_close(h);
+    if (wow < 0) { fprintf(stderr, "get_process_info failed\n"); return 1; }
+    printf("pid=%u arch=%s\n", pid, wow ? "wow64 (x86)" : "x64");
+    return 0;
+}
+
+static int cmd_bsod(int argc, char** argv) {
+    if (argc != 2 && argc != 3) { usage(); return 2; }
+    uint32_t pid = 0;
+    if (argc == 3 && !parse_u32(argv[2], &pid)) { usage(); return 2; }
+
+    fprintf(stderr,
+        "memtool_cli: WARNING - this will CRASH the system and reboot.\n"
+        "             Windows will write a kernel crash dump to disk per its\n"
+        "             CrashControl settings. Press Ctrl+C now to abort.\n");
+    for (int i = 5; i > 0; i--) {
+        fprintf(stderr, "  ... %d\n", i);
+        Sleep(1000);
+    }
+
+    MEM_HANDLE h = mem_open(0);
+    if (!h) { fprintf(stderr, "mem_open failed\n"); return 1; }
+    int ok = mem_trigger_bsod(h, pid);
+    mem_close(h);
+    // If we got here, the bug check apparently did NOT fire. Most likely the
+    // driver isn't loaded with this protocol version.
+    fprintf(stderr, "bsod request returned ok=%d (system did not crash)\n", ok);
+    return ok ? 0 : 1;
+}
+
 static int cmd_dump(int argc, char** argv) {
     if (argc != 4) { usage(); return 2; }
     uint32_t pid;
@@ -213,11 +332,18 @@ static int cmd_dump(int argc, char** argv) {
 int main(int argc, char** argv) {
     if (argc < 2) { usage(); return 2; }
     const char* cmd = argv[1];
-    if (strcmp(cmd, "read") == 0)        return cmd_read(argc, argv);
-    if (strcmp(cmd, "write") == 0)       return cmd_write(argc, argv);
+    if (strcmp(cmd, "read") == 0)        return do_read_like(argc, argv, 0);
+    if (strcmp(cmd, "write") == 0)       return do_write_like(argc, argv, 0);
     if (strcmp(cmd, "write-file") == 0)  return cmd_write_file(argc, argv);
     if (strcmp(cmd, "module") == 0)      return cmd_module(argc, argv);
+    if (strcmp(cmd, "vmread") == 0)      return do_read_like(argc, argv, 1);
+    if (strcmp(cmd, "vmwrite") == 0)     return do_write_like(argc, argv, 1);
+    if (strcmp(cmd, "modules") == 0)     return cmd_modules(argc, argv);
+    if (strcmp(cmd, "regions") == 0)     return cmd_regions(argc, argv);
+    if (strcmp(cmd, "procinfo") == 0)    return cmd_procinfo(argc, argv);
     if (strcmp(cmd, "dump") == 0)        return cmd_dump(argc, argv);
+    if (strcmp(cmd, "bsod") == 0)        return cmd_bsod(argc, argv);
     usage();
     return 2;
 }
+

@@ -17,12 +17,24 @@
     <ClCompile Include="dllmain.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="xfer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="minidump.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\bootdrv_test\memory.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="memtool.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="xfer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="minidump.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\bootdrv_test\memory.h">

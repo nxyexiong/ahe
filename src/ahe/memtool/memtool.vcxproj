@@ -77,12 +77,16 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="memtool.h" />
+    <ClInclude Include="xfer.h" />
+    <ClInclude Include="minidump.h" />
     <ClInclude Include="..\bootdrv_test\memory.h" />
     <ClInclude Include="..\bootdrv_test\protocol.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="memtool.cpp" />
     <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="xfer.cpp" />
+    <ClCompile Include="minidump.cpp" />
     <ClCompile Include="..\bootdrv_test\memory.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
