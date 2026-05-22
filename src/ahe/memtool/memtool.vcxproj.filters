@@ -23,7 +23,7 @@
     <ClCompile Include="minidump.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\bootdrv_test\memory.cpp">
+    <ClCompile Include="memory.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -37,10 +37,10 @@
     <ClInclude Include="minidump.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\bootdrv_test\memory.h">
+    <ClInclude Include="memory.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\bootdrv_test\protocol.h">
+    <ClInclude Include="protocol.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

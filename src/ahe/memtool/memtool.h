@@ -15,9 +15,20 @@ extern "C" {
 
 typedef void* MEM_HANDLE;
 
+// Transport selection for the memtool <-> bootdrv channel.
+//   MEM_TRANSPORT_IOCTL: \\.\PRM device + DeviceIoControl (default; faster).
+//   MEM_TRANSPORT_TCP  : 127.0.0.1:5554 (useful for cross-machine setups).
+typedef enum {
+    MEM_TRANSPORT_IOCTL = 0,
+    MEM_TRANSPORT_TCP   = 1,
+} mem_transport_t;
+
 // Open a memory handle for the given target process id.
-// Returns NULL on failure.
+// Returns NULL on failure. Uses MEM_TRANSPORT_IOCTL by default.
 MEMTOOL_API MEM_HANDLE __stdcall mem_open(uint32_t pid);
+
+// Same as mem_open but lets the caller pick the transport.
+MEMTOOL_API MEM_HANDLE __stdcall mem_open_ex(uint32_t pid, mem_transport_t transport);
 
 // Release a memory handle previously returned by mem_open.
 MEMTOOL_API void __stdcall mem_close(MEM_HANDLE handle);

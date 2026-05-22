@@ -4,11 +4,18 @@
 #include <vector>
 #include <Windows.h>
 
+enum class Transport {
+	Tcp,
+	Ioctl,
+};
+
 class Memory {
 public:
-	Memory(uint32_t pid);
+	Memory(uint32_t pid, Transport transport);
 	~Memory();
 	uint32_t get_pid() { return pid_; };
+	Transport transport() const { return transport_; }
+	bool ok() const;
 	bool read_memory(uint64_t addr, void* buf, uint32_t len);
 	bool write_memory(uint64_t addr, void* buf, uint32_t len);
 	uint64_t get_module_base(const std::wstring& name);
@@ -38,9 +45,24 @@ private:
 	             void* out_data, uint32_t out_data_cap,
 	             uint32_t* out_data_len, uint32_t* out_status);
 
+	bool request_ioctl(uint32_t req_type, uint64_t addr,
+	                   uint32_t req_data_len,
+	                   const void* in_data, uint32_t in_data_len,
+	                   uint32_t expected_rsp_type,
+	                   void* out_data, uint32_t out_data_cap,
+	                   uint32_t* out_data_len, uint32_t* out_status);
+
+	bool request_tcp(uint32_t req_type, uint64_t addr,
+	                 uint32_t req_data_len,
+	                 const void* in_data, uint32_t in_data_len,
+	                 uint32_t expected_rsp_type,
+	                 void* out_data, uint32_t out_data_cap,
+	                 uint32_t* out_data_len, uint32_t* out_status);
+
 	bool enumerate(uint32_t req_type, uint32_t expected_rsp_type, std::vector<uint8_t>& out);
 
 	uint32_t pid_;
+	Transport transport_;
 	uint32_t last_status_ = 0;
 	SOCKET sock_;
 	HANDLE device_;

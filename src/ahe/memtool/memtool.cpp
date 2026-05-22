@@ -22,11 +22,17 @@ struct MemImpl {
 };
 
 MEMTOOL_API MEM_HANDLE __stdcall mem_open(uint32_t pid) {
+    return mem_open_ex(pid, MEM_TRANSPORT_IOCTL);
+}
+
+MEMTOOL_API MEM_HANDLE __stdcall mem_open_ex(uint32_t pid, mem_transport_t transport) {
     MemImpl* h = new (std::nothrow) MemImpl;
     if (!h) return nullptr;
     h->pid = pid;
-    h->legacy = new (std::nothrow) Memory(pid);
-    h->xfer = new (std::nothrow) Xfer();
+    Transport     legacy_t = (transport == MEM_TRANSPORT_TCP) ? Transport::Tcp     : Transport::Ioctl;
+    XferTransport xfer_t   = (transport == MEM_TRANSPORT_TCP) ? XferTransport::Tcp : XferTransport::Ioctl;
+    h->legacy = new (std::nothrow) Memory(pid, legacy_t);
+    h->xfer = new (std::nothrow) Xfer(xfer_t);
     return (MEM_HANDLE)h;
 }
 

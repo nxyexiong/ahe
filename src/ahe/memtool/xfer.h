@@ -9,9 +9,14 @@
 // from this header (memtool.cpp and other consumers include those themselves,
 // and we want winsock2.h to be the one selected, not winsock.h via Windows.h).
 
+enum class XferTransport {
+    Ioctl,
+    Tcp,
+};
+
 class Xfer {
 public:
-    Xfer();
+    explicit Xfer(XferTransport transport = XferTransport::Ioctl);
     ~Xfer();
 
     bool ok() const;

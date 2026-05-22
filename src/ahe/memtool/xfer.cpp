@@ -16,16 +16,14 @@
 
 #pragma comment (lib, "Ws2_32.lib")
 
-//#define XFER_USE_IOCTL
-
 #define BUF_CAP        0x11000          // 64 KB payload + headroom
 #define SERVER_IP      "127.0.0.1"
 #define SERVER_PORT    5554
 
 static inline ULONG IoCodeOf(uint32_t reqType) {
-    // Mirrors bootdrv/ioctl.c: CTL_CODE(FILE_DEVICE_UNKNOWN, 0x8000 + reqType, METHOD_BUFFERED, FILE_SPECIAL_ACCESS)
+    // Mirrors bootdrv/ioctl.c: CTL_CODE(FILE_DEVICE_UNKNOWN, 0x8000 + reqType, METHOD_NEITHER, FILE_SPECIAL_ACCESS)
     return ((ULONG)FILE_DEVICE_UNKNOWN << 16) | ((ULONG)FILE_SPECIAL_ACCESS << 14)
-        | ((ULONG)(0x8000 + reqType) << 2) | (ULONG)METHOD_BUFFERED;
+        | ((ULONG)(0x8000 + reqType) << 2) | (ULONG)METHOD_NEITHER;
 }
 
 static SOCKET connect_tcp() {
@@ -44,20 +42,20 @@ static SOCKET connect_tcp() {
     return s;
 }
 
-Xfer::Xfer()
+Xfer::Xfer(XferTransport transport)
     : sock_((uintptr_t)INVALID_SOCKET),
       device_(INVALID_HANDLE_VALUE),
       buf_(nullptr),
       buf_cap_(BUF_CAP) {
     buf_ = (uint8_t*)malloc(buf_cap_);
-#ifdef XFER_USE_IOCTL
-    device_ = CreateFileW(L"\\\\.\\PRM",
-        GENERIC_READ | GENERIC_WRITE,
-        FILE_SHARE_READ | FILE_SHARE_WRITE,
-        NULL, OPEN_EXISTING, 0, NULL);
-#else
-    sock_ = (uintptr_t)connect_tcp();
-#endif
+    if (transport == XferTransport::Ioctl) {
+        device_ = CreateFileW(L"\\\\.\\PRM",
+            GENERIC_READ | GENERIC_WRITE,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            NULL, OPEN_EXISTING, 0, NULL);
+    } else {
+        sock_ = (uintptr_t)connect_tcp();
+    }
 }
 
 Xfer::~Xfer() {

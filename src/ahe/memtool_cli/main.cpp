@@ -8,6 +8,10 @@
 
 #include "memtool.h"
 
+// Selected transport for the bootdrv backend; set by --transport=ioctl|tcp
+// (defaults to IOCTL). Applied to every mem_open_ex() call below.
+static mem_transport_t g_transport = MEM_TRANSPORT_IOCTL;
+
 // Mirror records from protocol.h. memtool returns raw bytes from list_* APIs.
 #pragma pack(push, 1)
 typedef struct {
@@ -33,6 +37,10 @@ static void usage() {
     fprintf(stderr,
         "memtool_cli - memory operations via memtool.dll\n"
         "\n"
+        "Global options (must appear before the command):\n"
+        "  --transport=<ioctl|tcp>    Pick the bootdrv backend (default: ioctl).\n"
+        "  -t <ioctl|tcp>             Same as --transport=<...>.\n"
+        "\n"
         "Legacy (physmem) ops:\n"
         "  memtool_cli read   <pid> <addr_hex> <len> [outfile]\n"
         "  memtool_cli write  <pid> <addr_hex> <hex_bytes>\n"
@@ -56,6 +64,13 @@ static void usage() {
         "      Asks the driver to KeBugCheckEx(0xE2, pid, 0, 0, 0). Windows\n"
         "      writes a crash dump per HKLM\\SYSTEM\\CurrentControlSet\\Control\\CrashControl\n"
         "      settings (MEMORY.DMP / kernel/complete/active).\n");
+}
+
+static int parse_transport(const char* s, mem_transport_t* out) {
+    if (!s) return 0;
+    if (_stricmp(s, "ioctl") == 0) { *out = MEM_TRANSPORT_IOCTL; return 1; }
+    if (_stricmp(s, "tcp")   == 0) { *out = MEM_TRANSPORT_TCP;   return 1; }
+    return 0;
 }
 
 static int parse_u64(const char* s, uint64_t* out) {
@@ -125,7 +140,7 @@ static int do_read_like(int argc, char** argv, int use_vm) {
     if (!parse_u32(argv[2], &pid) || !parse_u64(argv[3], &addr) || !parse_u32(argv[4], &len)) {
         usage(); return 2;
     }
-    MEM_HANDLE h = mem_open(pid);
+    MEM_HANDLE h = mem_open_ex(pid, g_transport);
     if (!h) { fprintf(stderr, "mem_open failed\n"); return 1; }
 
     uint8_t* buf = (uint8_t*)malloc(len);
@@ -163,7 +178,7 @@ static int do_write_like(int argc, char** argv, int use_vm) {
     uint8_t* buf = parse_hex_bytes(argv[4], &len);
     if (!buf) { fprintf(stderr, "invalid hex bytes\n"); return 2; }
 
-    MEM_HANDLE h = mem_open(pid);
+    MEM_HANDLE h = mem_open_ex(pid, g_transport);
     if (!h) { free(buf); fprintf(stderr, "mem_open failed\n"); return 1; }
     int ok = use_vm ? mem_vm_write(h, addr, buf, len) : mem_write(h, addr, buf, len);
     if (!ok) fprintf(stderr, "write failed\n");
@@ -191,7 +206,7 @@ static int cmd_write_file(int argc, char** argv) {
     fread(buf, 1, (size_t)sz, f);
     fclose(f);
 
-    MEM_HANDLE h = mem_open(pid);
+    MEM_HANDLE h = mem_open_ex(pid, g_transport);
     if (!h) { free(buf); fprintf(stderr, "mem_open failed\n"); return 1; }
     int ok = mem_write(h, addr, buf, (uint32_t)sz);
     if (!ok) fprintf(stderr, "mem_write failed\n");
@@ -212,7 +227,7 @@ static int cmd_module(int argc, char** argv) {
     if (!wname) { fprintf(stderr, "oom\n"); return 1; }
     MultiByteToWideChar(CP_UTF8, 0, argv[3], -1, wname, wlen);
 
-    MEM_HANDLE h = mem_open(pid);
+    MEM_HANDLE h = mem_open_ex(pid, g_transport);
     if (!h) { free(wname); fprintf(stderr, "mem_open failed\n"); return 1; }
     uint64_t base = mem_get_module_base(h, wname);
     mem_close(h);
@@ -228,7 +243,7 @@ static int cmd_modules(int argc, char** argv) {
     uint32_t pid;
     if (!parse_u32(argv[2], &pid)) { usage(); return 2; }
 
-    MEM_HANDLE h = mem_open(pid);
+    MEM_HANDLE h = mem_open_ex(pid, g_transport);
     if (!h) { fprintf(stderr, "mem_open failed\n"); return 1; }
     uint32_t blen = 0;
     uint8_t* buf = mem_list_modules(h, &blen);
@@ -259,7 +274,7 @@ static int cmd_regions(int argc, char** argv) {
     uint32_t pid;
     if (!parse_u32(argv[2], &pid)) { usage(); return 2; }
 
-    MEM_HANDLE h = mem_open(pid);
+    MEM_HANDLE h = mem_open_ex(pid, g_transport);
     if (!h) { fprintf(stderr, "mem_open failed\n"); return 1; }
     uint32_t blen = 0;
     uint8_t* buf = mem_list_regions(h, &blen);
@@ -283,7 +298,7 @@ static int cmd_procinfo(int argc, char** argv) {
     uint32_t pid;
     if (!parse_u32(argv[2], &pid)) { usage(); return 2; }
 
-    MEM_HANDLE h = mem_open(pid);
+    MEM_HANDLE h = mem_open_ex(pid, g_transport);
     if (!h) { fprintf(stderr, "mem_open failed\n"); return 1; }
     int wow = mem_is_wow64(h);
     mem_close(h);
@@ -306,7 +321,7 @@ static int cmd_bsod(int argc, char** argv) {
         Sleep(1000);
     }
 
-    MEM_HANDLE h = mem_open(0);
+    MEM_HANDLE h = mem_open_ex(0, g_transport);
     if (!h) { fprintf(stderr, "mem_open failed\n"); return 1; }
     int ok = mem_trigger_bsod(h, pid);
     mem_close(h);
@@ -321,7 +336,7 @@ static int cmd_dump(int argc, char** argv) {
     uint32_t pid;
     if (!parse_u32(argv[2], &pid)) { usage(); return 2; }
 
-    MEM_HANDLE h = mem_open(pid);
+    MEM_HANDLE h = mem_open_ex(pid, g_transport);
     if (!h) { fprintf(stderr, "mem_open failed\n"); return 1; }
     int ok = mem_dump_process(h, argv[3]);
     mem_close(h);
@@ -330,6 +345,32 @@ static int cmd_dump(int argc, char** argv) {
 }
 
 int main(int argc, char** argv) {
+    // Strip recognised global options from argv before dispatching, so each
+    // sub-command keeps its existing argc/argv contract (argv[1] == command).
+    int dst = 1;
+    for (int i = 1; i < argc; i++) {
+        const char* a = argv[i];
+        if (strncmp(a, "--transport=", 12) == 0) {
+            if (!parse_transport(a + 12, &g_transport)) {
+                fprintf(stderr, "invalid --transport value: %s\n", a + 12);
+                usage();
+                return 2;
+            }
+            continue;
+        }
+        if (strcmp(a, "-t") == 0 || strcmp(a, "--transport") == 0) {
+            if (i + 1 >= argc || !parse_transport(argv[i + 1], &g_transport)) {
+                fprintf(stderr, "missing/invalid argument for %s\n", a);
+                usage();
+                return 2;
+            }
+            i++;
+            continue;
+        }
+        argv[dst++] = argv[i];
+    }
+    argc = dst;
+
     if (argc < 2) { usage(); return 2; }
     const char* cmd = argv[1];
     if (strcmp(cmd, "read") == 0)        return do_read_like(argc, argv, 0);

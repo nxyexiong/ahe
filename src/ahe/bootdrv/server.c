@@ -51,12 +51,15 @@ VOID HandleRequest(UINT8* ReqBuf, UINT32 ReqBufLen, UINT8* RspBuf, UINT32 RspCap
 		PRESPONSE Rsp = (PRESPONSE)RspBuf;
 		PVOID RspData = RspBuf + sizeof(RESPONSE);
 		Rsp->Type = READ_MEMORY_RESPONSE;
-		Rsp->DataLen = Req->DataLen;
 		SIZE_T r = 0;
 		Rsp->Status = ReadProcessMemory(Req->Pid, (PVOID)Req->Addr, RspData, Req->DataLen, &r);
+		// Report only the bytes actually read; on failure r may be 0 and the
+		// trailing payload bytes in RspBuf are uninitialized, so they must
+		// not be advertised to the client.
+		Rsp->DataLen = (UINT32)r;
 
 		*HandledLen = sizeof(REQUEST);
-		*RspLen = sizeof(RESPONSE) + Req->DataLen;
+		*RspLen = sizeof(RESPONSE) + (UINT32)r;
 	}
 	else if (Req->Type == WRITE_MEMORY_REQUEST) {
 		if (Req->DataLen > MAX_DATA_LEN) return;
