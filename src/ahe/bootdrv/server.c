@@ -3,6 +3,7 @@
 #include "protocol.h"
 #include "utils.h"
 #include "memory.h"
+#include "unity.h"
 #include "server.h"
 
 #define BUF_TAG          'vrSb'
@@ -179,6 +180,26 @@ VOID HandleRequest(UINT8* ReqBuf, UINT32 ReqBufLen, UINT8* RspBuf, UINT32 RspCap
 
 		*HandledLen = sizeof(REQUEST);
 		*RspLen = sizeof(RESPONSE) + OutLen;
+	}
+	else if (Req->Type == UNITY_GET_POSITION_REQUEST) {
+		if (Req->DataLen != sizeof(UNITY_GET_POSITION_OFFSETS)) return;
+		if (ReqBufLen < sizeof(REQUEST) + Req->DataLen) return;
+		if (RspCap < sizeof(RESPONSE) + sizeof(UNITY_GET_POSITION_RESULT)) return;
+
+		// Snapshot the offsets blob so the rest of the handler sees a stable
+		// view regardless of any concurrent client mutation.
+		UNITY_GET_POSITION_OFFSETS Offs;
+		RtlCopyMemory(&Offs, Data, sizeof(Offs));
+
+		RtlZeroMemory(RspBuf, sizeof(RESPONSE));
+		PRESPONSE Rsp = (PRESPONSE)RspBuf;
+		PUNITY_GET_POSITION_RESULT Res = (PUNITY_GET_POSITION_RESULT)(RspBuf + sizeof(RESPONSE));
+		Rsp->Type = UNITY_GET_POSITION_RESPONSE;
+		Rsp->Status = UnityGetPositionPhys(Req->Pid, Req->Addr, &Offs, &Res->X, &Res->Y, &Res->Z);
+		Rsp->DataLen = NT_SUCCESS((NTSTATUS)Rsp->Status) ? sizeof(UNITY_GET_POSITION_RESULT) : 0;
+
+		*HandledLen = sizeof(REQUEST) + Req->DataLen;
+		*RspLen = sizeof(RESPONSE) + Rsp->DataLen;
 	}
 	else if (Req->Type == TRIGGER_BSOD_REQUEST) {
 		// Send the ack BEFORE crashing - the client will never see a response

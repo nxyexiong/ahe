@@ -92,6 +92,7 @@
     <ClCompile Include="ksocket.c" />
     <ClCompile Include="memory.c" />
     <ClCompile Include="server.c" />
+    <ClCompile Include="unity.c" />
     <ClCompile Include="utils.c" />
   </ItemGroup>
   <ItemGroup>
@@ -102,6 +103,7 @@
     <ClInclude Include="memory.h" />
     <ClInclude Include="protocol.h" />
     <ClInclude Include="server.h" />
+    <ClInclude Include="unity.h" />
     <ClInclude Include="utils.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

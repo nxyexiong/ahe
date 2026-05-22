@@ -1,6 +1,7 @@
 #include <ntddk.h>
 #include "protocol.h"
 #include "memory.h"
+#include "unity.h"
 #include "ioctl.h"
 
 #define DEVICE_NAME L"\\Device\\PRM"
@@ -18,6 +19,7 @@
 #define IO_LIST_REGIONS_REQUEST         CTL_CODE(FILE_DEVICE_UNKNOWN, 0x8000 + LIST_REGIONS_REQUEST,       METHOD_NEITHER, FILE_SPECIAL_ACCESS)
 #define IO_GET_PROCESS_INFO_REQUEST     CTL_CODE(FILE_DEVICE_UNKNOWN, 0x8000 + GET_PROCESS_INFO_REQUEST,   METHOD_NEITHER, FILE_SPECIAL_ACCESS)
 #define IO_TRIGGER_BSOD_REQUEST         CTL_CODE(FILE_DEVICE_UNKNOWN, 0x8000 + TRIGGER_BSOD_REQUEST,       METHOD_NEITHER, FILE_SPECIAL_ACCESS)
+#define IO_UNITY_GET_POSITION_REQUEST         CTL_CODE(FILE_DEVICE_UNKNOWN, 0x8000 + UNITY_GET_POSITION_REQUEST,      METHOD_NEITHER, FILE_SPECIAL_ACCESS)
 
 PDEVICE_OBJECT g_DeviceObject;
 
@@ -128,6 +130,28 @@ NTSTATUS DeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp) {
 			Rsp->Status = Status;
 			Rsp->DataLen = 0;
 			RspSize = sizeof(RESPONSE);
+		}
+		else if (ControlCode == IO_UNITY_GET_POSITION_REQUEST) {
+			// Zero-copy: UnityGetPositionPhys is pure physmem (no attach), so user
+			// pointers resolve correctly without staging. Snapshot the offsets
+			// blob into kernel stack to avoid TOCTOU on Type3InputBuffer.
+			if (Hdr.DataLen != sizeof(UNITY_GET_POSITION_OFFSETS) ||
+			    InCap < sizeof(REQUEST) + sizeof(UNITY_GET_POSITION_OFFSETS) ||
+			    OutCap < sizeof(RESPONSE) + sizeof(UNITY_GET_POSITION_RESULT)) {
+				Status = STATUS_INVALID_PARAMETER;
+				goto Leave;
+			}
+			UNITY_GET_POSITION_OFFSETS Offs;
+			RtlCopyMemory(&Offs, (UINT8*)InUser + sizeof(REQUEST), sizeof(Offs));
+
+			UNITY_GET_POSITION_RESULT* Res = (UNITY_GET_POSITION_RESULT*)((UINT8*)OutUser + sizeof(RESPONSE));
+			Status = UnityGetPositionPhys(Hdr.Pid, Hdr.Addr, &Offs, &Res->X, &Res->Y, &Res->Z);
+
+			PRESPONSE Rsp = (PRESPONSE)OutUser;
+			Rsp->Type = UNITY_GET_POSITION_RESPONSE;
+			Rsp->Status = Status;
+			Rsp->DataLen = NT_SUCCESS(Status) ? sizeof(UNITY_GET_POSITION_RESULT) : 0;
+			RspSize = sizeof(RESPONSE) + Rsp->DataLen;
 		}
 		else {
 			// Non-physmem handlers: stage through Scratch. They either attach

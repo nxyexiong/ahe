@@ -32,11 +32,60 @@ typedef uint64_t UINT64;
 #define TRIGGER_BSOD_REQUEST         17
 #define TRIGGER_BSOD_RESPONSE        18
 
+// 1000+ block: higher-level, target-specific handlers built on top of the
+// primitive memory ops above. Kept in a separate numeric range so it is
+// obvious at a glance which requests are generic vs. target-specific.
+#define UNITY_GET_POSITION_REQUEST         1001
+#define UNITY_GET_POSITION_RESPONSE        1002
+
+// Hard upper bound on the parent-chain walk inside UnityGetPositionPhys. The chain
+// length is dictated by the target process's data, so a bad/corrupt pos_slot
+// could otherwise loop forever inside the driver.
+#define UNITY_GET_POSITION_MAX_ITERATIONS  64
+
+// UNITY_GET_POSITION request payload. All fields are byte offsets into Unity's
+// runtime data layout; the driver is intentionally version-agnostic and the
+// caller supplies the correct values for the target build.
+//
+// Layout walked by the handler (mirrors the legacy DOTS SIMD impl):
+//   transform           +TransformInternal -> transform_internal (UINT64)
+//   transform_internal  +PosSlot           -> pos_slot           (UINT64)
+//   transform_internal  +BoneIndex         -> bone index         (INT32)
+//   pos_slot            +RelationArray     -> relation_array     (UINT64)
+//   pos_slot            +DepIdxArray       -> dependency_index_array (UINT64)
+//   relation_array[i]   has stride RelationStride; within an entry:
+//     +RelationPos   : __m128 local position (float[4], w ignored)
+//     +RelationQuat  : __m128i quaternion bits (float[4] reinterpreted)
+//     +RelationScale : __m128 local scale (float[4], w ignored)
+//   dep_idx_array[i]    has stride DepIdxStride; entry is an INT32 parent
+//                       index (< 0 terminates the walk).
+typedef struct _UNITY_GET_POSITION_OFFSETS {
+	UINT32 TransformInternal;
+	UINT32 PosSlot;
+	UINT32 BoneIndex;
+	UINT32 RelationArray;
+	UINT32 DepIdxArray;
+	UINT32 RelationStride;
+	UINT32 RelationPos;
+	UINT32 RelationQuat;
+	UINT32 RelationScale;
+	UINT32 DepIdxStride;
+} UNITY_GET_POSITION_OFFSETS, *PUNITY_GET_POSITION_OFFSETS;
+
+// UNITY_GET_POSITION response payload: three 32-bit IEEE-754 float bit patterns
+// carried as UINT32 (same wire size as float; the caller reinterprets).
+typedef struct _UNITY_GET_POSITION_RESULT {
+	UINT32 X;
+	UINT32 Y;
+	UINT32 Z;
+} UNITY_GET_POSITION_RESULT, *PUNITY_GET_POSITION_RESULT;
+
 // REQUEST.Addr semantics by request type:
 //   READ/WRITE_MEMORY / VM_READ / VM_WRITE  : target virtual address
 //   GET_MODULE                              : 0 (name follows REQUEST)
 //   LIST_MODULES                            : skip count
 //   LIST_REGIONS                            : start VA (resume from this base)
+//   UNITY_GET_POSITION                            : transform VA (offsets blob in body)
 typedef struct _REQUEST {
 	UINT32 Type;
 	UINT32 Pid;

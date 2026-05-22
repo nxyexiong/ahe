@@ -32,6 +32,30 @@ typedef uint64_t UINT64;
 #define TRIGGER_BSOD_REQUEST         17
 #define TRIGGER_BSOD_RESPONSE        18
 
+#define UNITY_GET_POSITION_REQUEST         1001
+#define UNITY_GET_POSITION_RESPONSE        1002
+
+#define UNITY_GET_POSITION_MAX_ITERATIONS  64
+
+typedef struct _UNITY_GET_POSITION_OFFSETS {
+	UINT32 TransformInternal;
+	UINT32 PosSlot;
+	UINT32 BoneIndex;
+	UINT32 RelationArray;
+	UINT32 DepIdxArray;
+	UINT32 RelationStride;
+	UINT32 RelationPos;
+	UINT32 RelationQuat;
+	UINT32 RelationScale;
+	UINT32 DepIdxStride;
+} UNITY_GET_POSITION_OFFSETS, *PUNITY_GET_POSITION_OFFSETS;
+
+typedef struct _UNITY_GET_POSITION_RESULT {
+	UINT32 X;
+	UINT32 Y;
+	UINT32 Z;
+} UNITY_GET_POSITION_RESULT, *PUNITY_GET_POSITION_RESULT;
+
 typedef struct _REQUEST {
 	UINT32 Type;
 	UINT32 Pid;
