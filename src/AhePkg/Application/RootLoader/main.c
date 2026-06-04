@@ -10,6 +10,7 @@
 #include "utils.h"
 #include "hooks.h"
 #include "mapper.h"
+#include "hvpatch.h"
 
 #define WINDOWS_BOOTMGR_PATH L"\\efi\\microsoft\\boot\\bootmgfw.efi"
 
@@ -140,7 +141,7 @@ EFI_STATUS EFIAPI UefiMain(
 {
     gST->ConOut->ClearScreen(gST->ConOut);
     PrintLog(L"[+] root loader started\r\n");
-    
+
     // get windows bootmgr
     EFI_DEVICE_PATH* WindowsBootmgrDevicePath = NULL;
     EFI_STATUS Status = GetWindowsBootmgrDevicePath(&WindowsBootmgrDevicePath);
@@ -173,14 +174,26 @@ EFI_STATUS EFIAPI UefiMain(
     }
     PrintLog(L"[+] windows bootmgr loaded\r\n");
 
-    // setup mapper
-    Status = InitMapper(ImageHandle);
-    if (EFI_ERROR(Status)) {
-        PrintLog(L"[-] cannot setup mapper: %x\r\n", Status);
-        gBS->Stall(SEC_TO_MICRO(5));
-        return Status;
+    // setup mapper or hvstub depending on mode
+    if (CURRENT_MODE == MODE_HYPERVISOR) {
+        Status = InitHvStub(ImageHandle);
+        if (EFI_ERROR(Status)) {
+            PrintLog(L"[-] cannot load hvstub: %x\r\n", Status);
+            gBS->Stall(SEC_TO_MICRO(5));
+            return Status;
+        }
+        PrintLog(L"[+] hvstub loaded\r\n");
+        MappingStatus = EFI_NOT_STARTED;
+        MappingErrorMsg = L"hypervisor not patched yet";
+    } else {
+        Status = InitMapper(ImageHandle);
+        if (EFI_ERROR(Status)) {
+            PrintLog(L"[-] cannot setup mapper: %x\r\n", Status);
+            gBS->Stall(SEC_TO_MICRO(5));
+            return Status;
+        }
+        PrintLog(L"[+] mapper set: %p, %x\r\n", MappingContent, MappingSize);
     }
-    PrintLog(L"[+] mapper set: %p, %x\r\n", MappingContent, MappingSize);
 
     // setup hook
     Status = HookImgArchStartBootApplication(WindowsBootmgrHandle);

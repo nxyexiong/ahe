@@ -10,6 +10,7 @@
 
 #include "memory.h"
 #include "protocol.h"
+#include "hv.h"
 
 #pragma comment (lib, "Ws2_32.lib")
 
@@ -44,13 +45,30 @@ static inline ULONG io_code_of(uint32_t req_type) {
 Memory::Memory(uint32_t pid, Transport transport)
 	: pid_(pid), transport_(transport),
 	  sock_(INVALID_SOCKET), device_(INVALID_HANDLE_VALUE) {
-	if (transport_ == Transport::Ioctl) {
+	switch (transport_) {
+	case Transport::Ioctl:
 		device_ = CreateFileW(L"\\\\.\\PRM",
 			GENERIC_READ | GENERIC_WRITE,
 			FILE_SHARE_READ | FILE_SHARE_WRITE,
 			NULL, OPEN_EXISTING, 0, NULL);
-	} else {
+		break;
+	case Transport::Tcp:
 		sock_ = connect_socket();
+		break;
+	case Transport::Hv:
+		hv_ok_ = hv_ping();
+		if (hv_ok_) {
+			hv_pte_index_ = hv_alloc_pte_index();
+			uint64_t guest_cr3 = hv_vmread(0x6802);
+			if (guest_cr3 == 0) { hv_ok_ = false; break; }
+			if (pid_ == 0 || pid_ == GetCurrentProcessId()) {
+					hv_target_cr3_ = guest_cr3;
+			} else {
+					hv_target_cr3_ = hv_get_cr3_for_pid(hv_pte_index_, guest_cr3, pid_);
+					if (hv_target_cr3_ == 0) hv_ok_ = false;
+			}
+		}
+		break;
 	}
 }
 
@@ -60,13 +78,19 @@ Memory::~Memory() {
 }
 
 bool Memory::ok() const {
-	return (transport_ == Transport::Ioctl)
-		? (device_ != INVALID_HANDLE_VALUE)
-		: (sock_ != INVALID_SOCKET);
+	switch (transport_) {
+	case Transport::Ioctl:
+		return device_ != INVALID_HANDLE_VALUE;
+	case Transport::Tcp:
+		return sock_ != INVALID_SOCKET;
+	case Transport::Hv:
+		return hv_ok_;
+	}
+	return false;
 }
 
 bool Memory::read_memory(uint64_t addr, void* buf, uint32_t len) {
-	if (len > MAX_DATA_LEN) return false;
+	if (transport_ == Transport::Hv || len > MAX_DATA_LEN) return false;
 	uint32_t got = 0, status = 0;
 	if (!request(READ_MEMORY_REQUEST, addr, len, nullptr, 0, READ_MEMORY_RESPONSE,
 	             buf, len, &got, &status)) return false;
@@ -74,7 +98,7 @@ bool Memory::read_memory(uint64_t addr, void* buf, uint32_t len) {
 }
 
 bool Memory::write_memory(uint64_t addr, void* buf, uint32_t len) {
-	if (len > MAX_DATA_LEN) return false;
+	if (transport_ == Transport::Hv || len > MAX_DATA_LEN) return false;
 	uint32_t got = 0, status = 0;
 	if (!request(WRITE_MEMORY_REQUEST, addr, len, buf, len, WRITE_MEMORY_RESPONSE,
 	             nullptr, 0, &got, &status)) return false;
@@ -82,6 +106,7 @@ bool Memory::write_memory(uint64_t addr, void* buf, uint32_t len) {
 }
 
 uint64_t Memory::get_module_base(const std::wstring& name) {
+	if (transport_ == Transport::Hv) return 0;
 	uint32_t nlen = (uint32_t)name.size() * (uint32_t)sizeof(wchar_t);
 	uint64_t base = 0;
 	uint32_t got = 0, status = 0;
@@ -100,11 +125,20 @@ bool Memory::request(uint32_t req_type, uint64_t addr,
 	if (out_data_len) *out_data_len = 0;
 	if (out_status) *out_status = 0;
 
-	bool ok = (transport_ == Transport::Ioctl)
-		? request_ioctl(req_type, addr, req_data_len, in_data, in_data_len,
-		                expected_rsp_type, out_data, out_data_cap, out_data_len, out_status)
-		: request_tcp(req_type, addr, req_data_len, in_data, in_data_len,
-		              expected_rsp_type, out_data, out_data_cap, out_data_len, out_status);
+	bool ok = false;
+	switch (transport_) {
+	case Transport::Ioctl:
+		ok = request_ioctl(req_type, addr, req_data_len, in_data, in_data_len,
+		                  expected_rsp_type, out_data, out_data_cap, out_data_len, out_status);
+		break;
+	case Transport::Tcp:
+		ok = request_tcp(req_type, addr, req_data_len, in_data, in_data_len,
+		                expected_rsp_type, out_data, out_data_cap, out_data_len, out_status);
+		break;
+	case Transport::Hv:
+		ok = false;
+		break;
+	}
 
 	last_status_ = ok ? (out_status ? *out_status : 0u) : 0xFFFFFFFFu;
 	return ok;
@@ -194,6 +228,10 @@ bool Memory::request_tcp(uint32_t req_type, uint64_t addr,
 
 bool Memory::vm_read(uint64_t addr, void* buf, uint32_t len) {
 	if (!buf) return false;
+	if (transport_ == Transport::Hv) {
+		if (!hv_ok_ || hv_target_cr3_ == 0) return false;
+		return hv_rpm(hv_pte_index_, hv_target_cr3_, addr, buf, len);
+	}
 	uint8_t* p = (uint8_t*)buf;
 	uint32_t off = 0;
 	while (off < len) {
@@ -211,6 +249,10 @@ bool Memory::vm_read(uint64_t addr, void* buf, uint32_t len) {
 
 bool Memory::vm_write(uint64_t addr, const void* buf, uint32_t len) {
 	if (!buf) return false;
+	if (transport_ == Transport::Hv) {
+		if (!hv_ok_ || hv_target_cr3_ == 0) return false;
+		return hv_wpm(hv_pte_index_, hv_target_cr3_, addr, buf, len);
+	}
 	const uint8_t* p = (const uint8_t*)buf;
 	uint32_t off = 0;
 	while (off < len) {
@@ -227,6 +269,7 @@ bool Memory::vm_write(uint64_t addr, const void* buf, uint32_t len) {
 
 bool Memory::enumerate(uint32_t req_type, uint32_t expected_rsp_type, std::vector<uint8_t>& out) {
 	out.clear();
+	if (transport_ == Transport::Hv) return false;
 	uint64_t cursor = 0;
 	std::vector<uint8_t> page(MAX_VM_DATA_LEN);
 	for (;;) {

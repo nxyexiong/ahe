@@ -18,9 +18,11 @@ typedef void* MEM_HANDLE;
 // Transport selection for the memtool <-> bootdrv channel.
 //   MEM_TRANSPORT_IOCTL: \\.\PRM device + DeviceIoControl (default; faster).
 //   MEM_TRANSPORT_TCP  : 127.0.0.1:5554 (useful for cross-machine setups).
+//   MEM_TRANSPORT_HV   : Hyper-V CPUID stub (ping-only for now).
 typedef enum {
     MEM_TRANSPORT_IOCTL = 0,
     MEM_TRANSPORT_TCP   = 1,
+    MEM_TRANSPORT_HV    = 2,
 } mem_transport_t;
 
 // Open a memory handle for the given target process id.

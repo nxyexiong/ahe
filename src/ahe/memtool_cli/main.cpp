@@ -38,8 +38,8 @@ static void usage() {
         "memtool_cli - memory operations via memtool.dll\n"
         "\n"
         "Global options (must appear before the command):\n"
-        "  --transport=<ioctl|tcp>    Pick the bootdrv backend (default: ioctl).\n"
-        "  -t <ioctl|tcp>             Same as --transport=<...>.\n"
+        "  --transport=<ioctl|tcp|hv>  Pick the backend (default: ioctl).\n"
+        "  -t <ioctl|tcp|hv>           Same as --transport=<...>.\n"
         "\n"
         "Legacy (physmem) ops:\n"
         "  memtool_cli read   <pid> <addr_hex> <len> [outfile]\n"
@@ -70,6 +70,7 @@ static int parse_transport(const char* s, mem_transport_t* out) {
     if (!s) return 0;
     if (_stricmp(s, "ioctl") == 0) { *out = MEM_TRANSPORT_IOCTL; return 1; }
     if (_stricmp(s, "tcp")   == 0) { *out = MEM_TRANSPORT_TCP;   return 1; }
+    if (_stricmp(s, "hv")    == 0) { *out = MEM_TRANSPORT_HV;    return 1; }
     return 0;
 }
 

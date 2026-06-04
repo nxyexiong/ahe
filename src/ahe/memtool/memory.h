@@ -7,6 +7,7 @@
 enum class Transport {
 	Tcp,
 	Ioctl,
+	Hv,
 };
 
 class Memory {
@@ -66,5 +67,8 @@ private:
 	uint32_t last_status_ = 0;
 	SOCKET sock_;
 	HANDLE device_;
+	bool hv_ok_ = false;
+	uint64_t hv_target_cr3_ = 0;
+	uint32_t hv_pte_index_ = 0;
 };
 

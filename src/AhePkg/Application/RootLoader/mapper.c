@@ -405,6 +405,11 @@ VOID Map(LIST_ENTRY* LoadOrderListHead) {
             MappingErrorMsg = L"cannot write hook data";
             return;
         }
+
+        // wipe PE headers from the mapped image to defeat MZ/PE memory scans;
+        // safe here because the payload is not in PsLoadedModuleList (no kernel
+        // reflection on its headers) and all fixups/exports have already been consumed
+        MemZero(MappingBuffer, NtHeader->OptionalHeader.SizeOfHeaders);
     } else if (CURRENT_MODE == MODE_OVERWRITE) {
         // overwrite entry point
         OverwriteTarget->EntryPoint = EntryPoint;

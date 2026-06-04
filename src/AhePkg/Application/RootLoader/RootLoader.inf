@@ -11,6 +11,7 @@
     utils.c
     hooks.c
     mapper.c
+    hvpatch.c
 
 [Packages]
     MdePkg/MdePkg.dec

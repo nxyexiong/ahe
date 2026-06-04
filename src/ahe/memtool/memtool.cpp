@@ -29,10 +29,27 @@ MEMTOOL_API MEM_HANDLE __stdcall mem_open_ex(uint32_t pid, mem_transport_t trans
     MemImpl* h = new (std::nothrow) MemImpl;
     if (!h) return nullptr;
     h->pid = pid;
-    Transport     legacy_t = (transport == MEM_TRANSPORT_TCP) ? Transport::Tcp     : Transport::Ioctl;
-    XferTransport xfer_t   = (transport == MEM_TRANSPORT_TCP) ? XferTransport::Tcp : XferTransport::Ioctl;
+
+    Transport legacy_t = Transport::Ioctl;
+    XferTransport xfer_t = XferTransport::Ioctl;
+    bool use_xfer = true;
+
+    switch (transport) {
+    case MEM_TRANSPORT_TCP:
+        legacy_t = Transport::Tcp;
+        xfer_t = XferTransport::Tcp;
+        break;
+    case MEM_TRANSPORT_HV:
+        legacy_t = Transport::Hv;
+        use_xfer = false;
+        break;
+    case MEM_TRANSPORT_IOCTL:
+    default:
+        break;
+    }
+
     h->legacy = new (std::nothrow) Memory(pid, legacy_t);
-    h->xfer = new (std::nothrow) Xfer(xfer_t);
+    h->xfer = use_xfer ? new (std::nothrow) Xfer(xfer_t) : nullptr;
     return (MEM_HANDLE)h;
 }
 
@@ -82,6 +99,12 @@ MEMTOOL_API uint64_t __stdcall mem_get_module_base(MEM_HANDLE handle, const wcha
 MEMTOOL_API int __stdcall mem_vm_read(MEM_HANDLE handle, uint64_t addr, void* buf, uint32_t len) {
     if (!handle || !buf) return 0;
     MemImpl* h = (MemImpl*)handle;
+    if (!h->legacy) return 0;
+
+    // HV transport uses Memory::vm_read directly
+    if (h->legacy->transport() == Transport::Hv)
+        return h->legacy->vm_read(addr, buf, len) ? 1 : 0;
+
     if (!h->xfer || !h->xfer->ok()) return 0;
     uint8_t* p = (uint8_t*)buf;
     uint32_t off = 0;
@@ -99,6 +122,11 @@ MEMTOOL_API int __stdcall mem_vm_read(MEM_HANDLE handle, uint64_t addr, void* bu
 MEMTOOL_API int __stdcall mem_vm_write(MEM_HANDLE handle, uint64_t addr, const void* buf, uint32_t len) {
     if (!handle || !buf) return 0;
     MemImpl* h = (MemImpl*)handle;
+    if (!h->legacy) return 0;
+
+    if (h->legacy->transport() == Transport::Hv)
+        return h->legacy->vm_write(addr, buf, len) ? 1 : 0;
+
     if (!h->xfer || !h->xfer->ok()) return 0;
     const uint8_t* p = (const uint8_t*)buf;
     uint32_t off = 0;

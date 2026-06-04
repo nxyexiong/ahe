@@ -32,7 +32,9 @@
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="ExtensionSettings">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.props" />
+  </ImportGroup>
   <ImportGroup Label="Shared" />
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
@@ -81,6 +83,7 @@
     <ClInclude Include="minidump.h" />
     <ClInclude Include="memory.h" />
     <ClInclude Include="protocol.h" />
+    <ClInclude Include="hv.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="memtool.cpp" />
@@ -88,7 +91,13 @@
     <ClCompile Include="xfer.cpp" />
     <ClCompile Include="minidump.cpp" />
     <ClCompile Include="memory.cpp" />
+    <ClCompile Include="hv.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="hvcall.asm" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets" />
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.targets" />
+  </ImportGroup>
 </Project>

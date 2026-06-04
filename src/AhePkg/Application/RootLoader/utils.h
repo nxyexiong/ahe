@@ -4,7 +4,8 @@
 // statically setting mode here, then compile for different binaries
 #define MODE_NORMAL_MAPPING 1 // map by allocating memory
 #define MODE_OVERWRITE 2 // map by overwriting
-#define CURRENT_MODE MODE_OVERWRITE
+#define MODE_HYPERVISOR 3 // hook hypervisor vmexit dispatcher
+#define CURRENT_MODE MODE_HYPERVISOR
 
 #define OVERWRITE_DRIVER L"PRM.sys"
 

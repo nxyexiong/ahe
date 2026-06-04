@@ -74,7 +74,33 @@ Average hacking enjoyer
  - put ```cert.cer``` into a FAT32 usb drive, enroll it in BIOS accordingly
  - enroll ```cert.cer``` in bios for something like "secure boot DB" (there are usually also PK, KEK and DBX, but only DB is needed)
 
+# hvstub (hypervisor backdoor)
+
+hvstub is a Ring -1 backdoor that hooks the Hyper-V VMEXIT dispatcher. It allows read/write access to any process memory from user-mode via CPUID.
+
+## prerequisites
+ - Windows with Hyper-V / VBS enabled:
+   - open Settings > Privacy & Security > Windows Security > Device Security > Core isolation details
+   - enable **Memory integrity** (HVCI)
+   - or run: `bcdedit /set hypervisorlaunchtype auto` and reboot
+   - verify: open msinfo32.exe and check "Virtualization-based security" is "Running"
+ - Intel CPU with VT-x (AMD SVM pattern exists but is less tested)
+
+## usage
+ - set `CURRENT_MODE` to `MODE_HYPERVISOR` in `src/AhePkg/Application/RootLoader/utils.h`
+ - build AhePkg and hvstub.sys
+ - place `bootx64.efi` (renamed RootLoader.efi) and `hvstub.sys` into `\EFI\BOOT\` on the boot partition
+ - boot from it
+ - on the target machine, use `memtool.dll` with `MEM_TRANSPORT_HV`:
+```c
+MEM_HANDLE h = mem_open_ex(target_pid, MEM_TRANSPORT_HV);
+mem_vm_read(h, address, buffer, size);
+mem_vm_write(h, address, buffer, size);
+mem_close(h);
+```
+
 # credits
  - [drvmap](https://github.com/not-wlan/drvmap)
  - [umap](https://github.com/btbd/umap)
  - [PatchBoot](https://github.com/SamuelTulach/PatchBoot)
+ - [DmaBackdoorHv](https://github.com/Cr4sh/s6_pcie_microblaze/tree/master/python/payloads/DmaBackdoorHv)

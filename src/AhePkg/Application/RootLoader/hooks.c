@@ -8,6 +8,7 @@
 #include "utils.h"
 #include "mapper.h"
 #include "hooks.h"
+#include "hvpatch.h"
 
 UINT8 ImgArchStartBootApplicationOriginal[HOOK_ORI_SIZE];
 IMG_ARCH_START_BOOT_APPLICATION ImgArchStartBootApplication;
@@ -68,13 +69,13 @@ EFI_STATUS EFIAPI OslFwpKernelSetupPhase1Hook(
     LOADER_PARAMETER_BLOCK* LoaderBlock
 )
 {
-    // cannot use print here
     // unhook
     TrampolineUnhook((VOID *)OslFwpKernelSetupPhase1,
         OslFwpKernelSetupPhase1Original);
     
-    // map
-    Map(&LoaderBlock->LoadOrderListHead);
+    // map driver (hypervisor mode is handled by BlLdrLoadImage hook)
+    if (CURRENT_MODE != MODE_HYPERVISOR)
+        Map(&LoaderBlock->LoadOrderListHead);
     
     // call original
     return OslFwpKernelSetupPhase1(LoaderBlock);
@@ -196,6 +197,17 @@ EFI_STATUS EFIAPI ImgArchStartBootApplicationHook(
         gST->RuntimeServices->ResetSystem(EfiResetCold, Status, 0, NULL);
     }
     PrintLog(L"[+] OslFwpKernelSetupPhase1 hooked\r\n");
+
+    // hook BlLdrLoadImage in hypervisor mode to intercept HV image loading
+    if (CURRENT_MODE == MODE_HYPERVISOR) {
+        Status = HookBlLdrLoadImage(ImageBase, ImageSize);
+        if (EFI_ERROR(Status)) {
+            PrintLog(L"[-] cannot hook BlLdrLoadImage: %d\r\n", Status);
+            gBS->Stall(SEC_TO_MICRO(5));
+            gST->RuntimeServices->ResetSystem(EfiResetCold, Status, 0, NULL);
+        }
+        PrintLog(L"[+] BlLdrLoadImage hooked\r\n");
+    }
 
     // hook BlImgAllocateImageBuffer in normal mapping mode
     if (CURRENT_MODE == MODE_NORMAL_MAPPING) {

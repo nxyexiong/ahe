@@ -26,6 +26,12 @@
     <ClCompile Include="memory.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="hv.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <MASM Include="hvcall.asm">
+      <Filter>Source Files</Filter>
+    </MASM>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="memtool.h">
@@ -41,6 +47,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="protocol.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="hv.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
