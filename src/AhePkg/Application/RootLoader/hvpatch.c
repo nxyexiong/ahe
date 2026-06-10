@@ -11,17 +11,16 @@
 #include "hvpatch.h"
 
 // ---------------------------------------------------------------------------
-// hvstub.sys file content (loaded from EFI partition)
+// hvstub DLL file content (loaded from EFI partition)
 // ---------------------------------------------------------------------------
 static VOID* HvStubContent = NULL;
 static UINTN HvStubContentSize = 0;
 
-// mapped image buffer of hvstub.sys kept for the planned C-based handler path.
+// mapped image buffer of hvstub DLL kept for the planned C-based handler path.
 // PatchHvImage currently uses the inline CPUID relay below instead.
 static UINT8* HvStubText = NULL;
 static UINT32 HvStubTextSize = 0;
 static UINT32 HvStubEntryRva = 0;
-static UINT32 HvStubOrigAddrRva = 0;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -125,7 +124,7 @@ static UINT8* FindSvmCallSite(VOID* ImageBase, UINT32 ImageSize) {
 }
 
 // ---------------------------------------------------------------------------
-// InitHvStub — load hvstub.sys for the planned C-based dispatcher path.
+// InitHvStub — load hvstub_intel.dll or hvstub_amd.dll for the dispatcher path.
 // PatchHvImage currently uses the inline CPUID relay below instead.
 // ---------------------------------------------------------------------------
 EFI_STATUS EFIAPI InitHvStub(EFI_HANDLE ImageHandle) {
@@ -143,7 +142,10 @@ EFI_STATUS EFIAPI InitHvStub(EFI_HANDLE ImageHandle) {
     EFI_FILE_PROTOCOL* File;
     Status = Volume->OpenVolume(Volume, &Root);
     if (EFI_ERROR(Status)) return Status;
-    Status = Root->Open(Root, &File, L"\\efi\\boot\\hvstub.sys", EFI_FILE_MODE_READ, 0);
+    CHAR16* HvStubPath = IsIntelCpu()
+        ? L"\\efi\\boot\\hvstub_intel.dll"
+        : L"\\efi\\boot\\hvstub_amd.dll";
+    Status = Root->Open(Root, &File, HvStubPath, EFI_FILE_MODE_READ, 0);
     Root->Close(Root);
     if (EFI_ERROR(Status)) return Status;
 
@@ -190,12 +192,8 @@ EFI_STATUS EFIAPI InitHvStub(EFI_HANDLE ImageHandle) {
     if (EntryRva == 0) return EFI_NOT_FOUND;
     HvStubEntryRva = EntryRva;
 
-    UINT32 OrigAddrRva = FindExportRva(HvStubText, "OrigDispatcherAddr");
-    if (OrigAddrRva == 0) return EFI_NOT_FOUND;
-    HvStubOrigAddrRva = OrigAddrRva;
-
-    PrintLog(L"[*] hvstub: loaded (image=%x, entry=%x, orig=%x); inline relay still active\r\n",
-        HvStubTextSize, HvStubEntryRva, HvStubOrigAddrRva);
+    PrintLog(L"[*] hvstub: loaded (image=%x, entry=%x)\r\n",
+        HvStubTextSize, HvStubEntryRva);
 
     return EFI_SUCCESS;
 }

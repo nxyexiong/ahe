@@ -59,7 +59,7 @@ Memory::Memory(uint32_t pid, Transport transport)
 		hv_ok_ = hv_ping();
 		if (hv_ok_) {
 			hv_pte_index_ = hv_alloc_pte_index();
-			uint64_t guest_cr3 = hv_vmread(0x6802);
+			uint64_t guest_cr3 = hv_vmread(hv_field_guest_cr3());
 			if (guest_cr3 == 0) { hv_ok_ = false; break; }
 			if (pid_ == 0 || pid_ == GetCurrentProcessId()) {
 					hv_target_cr3_ = guest_cr3;

@@ -13,6 +13,7 @@
 bool     hv_ping();
 uint64_t hv_vmread(uint64_t field);
 uint64_t hv_rdmsr(uint64_t msr);
+uint64_t hv_field_guest_cr3();
 bool     hv_rpm(uint32_t pte_index, uint64_t cr3, uint64_t va, void* buf, uint32_t len);
 bool     hv_wpm(uint32_t pte_index, uint64_t cr3, uint64_t va, const void* buf, uint32_t len);
 uint64_t hv_get_cr3_for_pid(uint32_t pte_index, uint64_t guest_cr3, uint32_t target_pid);

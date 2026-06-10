@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <string.h>
+#include <intrin.h>
 #include <Windows.h>
 
 #include "hv.h"
@@ -8,28 +9,40 @@ extern "C" int ahe_hv_ping(void);
 extern "C" uint64_t ahe_hv_call(uint64_t cmd, uint64_t a0, uint64_t a1, uint64_t a2,
                                  uint64_t* out_r10, uint64_t* out_r12, uint64_t* out_r13);
 
-static volatile LONG g_next_pte_index = 0;
+static volatile LONG g_next_pte_index = 0x100;
+
+static bool is_amd_cpu() {
+	int info[4];
+	__cpuid(info, 0);
+	return info[1] == 0x68747541; // "Auth"
+}
+
+// VMCS field (Intel) vs VMCB offset (AMD)
+uint64_t hv_field_guest_cr3() { return is_amd_cpu() ? 0x550 : 0x6802; }
 
 uint32_t hv_alloc_pte_index() {
 	return (uint32_t)InterlockedIncrement(&g_next_pte_index) - 1;
 }
 
 // ---------------------------------------------------------------------------
-// Command codes (must match hvstub/main.c)
+// Command codes (from hvstub_protocol.h)
 // ---------------------------------------------------------------------------
-#define HV_CMD_PING         0xFF
-#define HV_CMD_VIRT_READ    0x01
-#define HV_CMD_VIRT_WRITE   0x02
-#define HV_CMD_VMREAD       0x03
-#define HV_CMD_VMWRITE      0x04
-#define HV_CMD_RDMSR        0x05
-#define HV_CMD_INVL_CACHES  0x06
+#include "../hvstub_protocol.h"
+
+// Aliases for readability in this file
+#define HV_CMD_PING         CMD_PING
+#define HV_CMD_VIRT_READ    CMD_VIRT_READ
+#define HV_CMD_VIRT_WRITE   CMD_VIRT_WRITE
+#define HV_CMD_VMREAD       CMD_VMREAD
+#define HV_CMD_VMWRITE      CMD_VMWRITE
+#define HV_CMD_RDMSR        CMD_RDMSR
+#define HV_CMD_INVL_CACHES  CMD_INVL_CACHES
 
 // ---------------------------------------------------------------------------
 // PTE self-map constants
 // ---------------------------------------------------------------------------
 #define HV_PTE_BASE     0xffffff0000000000ULL
-#define HV_PHYS_MAP_PTE 0ULL
+#define HV_PHYS_MAP_PTE 0x100ULL
 #define HV_PTE_P        0x01ULL
 #define HV_PTE_PS       0x80ULL
 #define HV_PTE_RW       0x02ULL

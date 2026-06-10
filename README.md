@@ -84,12 +84,21 @@ hvstub is a Ring -1 backdoor that hooks the Hyper-V VMEXIT dispatcher. It allows
    - enable **Memory integrity** (HVCI)
    - or run: `bcdedit /set hypervisorlaunchtype auto` and reboot
    - verify: open msinfo32.exe and check "Virtualization-based security" is "Running"
- - Intel CPU with VT-x (AMD SVM pattern exists but is less tested)
+ - Intel CPU with VT-x or AMD CPU with SVM
+
+## troubleshooting
+If the HV image hook fails to fire (hvstub not loaded), disable VSM and isolated context:
+```
+bcdedit /set {current} vsmlaunchtype off
+bcdedit /set {current} hypervisorlaunchtype auto
+bcdedit /deletevalue {current} isolatedcontext
+```
+Reboot after running these commands.
 
 ## usage
  - set `CURRENT_MODE` to `MODE_HYPERVISOR` in `src/AhePkg/Application/RootLoader/utils.h`
- - build AhePkg and hvstub.sys
- - place `bootx64.efi` (renamed RootLoader.efi) and `hvstub.sys` into `\EFI\BOOT\` on the boot partition
+ - build AhePkg, `hvstub_intel.dll`, and `hvstub_amd.dll`
+ - place `bootx64.efi` (renamed RootLoader.efi), `hvstub_intel.dll`, and `hvstub_amd.dll` into `\EFI\BOOT\` on the boot partition
  - boot from it
  - on the target machine, use `memtool.dll` with `MEM_TRANSPORT_HV`:
 ```c

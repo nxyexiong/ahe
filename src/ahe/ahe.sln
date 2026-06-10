@@ -19,7 +19,9 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "memtool", "memtool\memtool.
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "memtool_cli", "memtool_cli\memtool_cli.vcxproj", "{6B8C4D2E-3F50-4B7C-9D0E-2F3A4B5C6D7E}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "hvstub", "hvstub\hvstub.vcxproj", "{C9051472-065B-4AC1-9CC2-E257DBBFF69C}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "hvstub_intel", "hvstub_intel\hvstub_intel.vcxproj", "{C9051472-065B-4AC1-9CC2-E257DBBFF69C}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "hvstub_amd", "hvstub_amd\hvstub_amd.vcxproj", "{A812AF2E-7797-48C0-9F28-C5DA7C38E74B}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "hvstub_test", "hvstub_test\hvstub_test.vcxproj", "{D1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
 	ProjectSection(ProjectDependencies) = postProject
@@ -68,10 +70,12 @@ Global
 		{6B8C4D2E-3F50-4B7C-9D0E-2F3A4B5C6D7E}.Release|x64.Build.0 = Release|x64
 		{C9051472-065B-4AC1-9CC2-E257DBBFF69C}.Debug|x64.ActiveCfg = Debug|x64
 		{C9051472-065B-4AC1-9CC2-E257DBBFF69C}.Debug|x64.Build.0 = Debug|x64
-		{C9051472-065B-4AC1-9CC2-E257DBBFF69C}.Debug|x64.Deploy.0 = Debug|x64
 		{C9051472-065B-4AC1-9CC2-E257DBBFF69C}.Release|x64.ActiveCfg = Release|x64
 		{C9051472-065B-4AC1-9CC2-E257DBBFF69C}.Release|x64.Build.0 = Release|x64
-		{C9051472-065B-4AC1-9CC2-E257DBBFF69C}.Release|x64.Deploy.0 = Release|x64
+		{A812AF2E-7797-48C0-9F28-C5DA7C38E74B}.Debug|x64.ActiveCfg = Debug|x64
+		{A812AF2E-7797-48C0-9F28-C5DA7C38E74B}.Debug|x64.Build.0 = Debug|x64
+		{A812AF2E-7797-48C0-9F28-C5DA7C38E74B}.Release|x64.ActiveCfg = Release|x64
+		{A812AF2E-7797-48C0-9F28-C5DA7C38E74B}.Release|x64.Build.0 = Release|x64
 		{D1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Debug|x64.ActiveCfg = Release|x64
 		{D1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Debug|x64.Build.0 = Release|x64
 		{D1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Release|x64.ActiveCfg = Release|x64

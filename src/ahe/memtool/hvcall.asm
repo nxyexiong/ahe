@@ -1,16 +1,18 @@
+include ..\hvstub_protocol.inc
+
 .code
 ; int ahe_hv_ping(void)
 ; Sets R10 = 0x41484500 (AHE magic), executes CPUID leaf 0
 ; Returns 1 if R10 == 0x504F4E47 (PONG), 0 otherwise
 ahe_hv_ping PROC
     push rbx
-    mov r10, 041484500CAFE1337h  ; AHE_CPUID_MAGIC (64-bit)
-    mov r11, 0A4E0C0DECAFE13FFh  ; AHE_CMD_MAGIC | CMD_PING
+    mov r10, AHE_CPUID_MAGIC
+    mov r11, AHE_CMD_PING
     xor eax, eax
     xor ecx, ecx
     cpuid
     xor eax, eax
-    mov rcx, 0504F4E47B00B1E55h  ; AHE_CPUID_PONG (64-bit)
+    mov rcx, AHE_CPUID_PONG
     cmp r10, rcx
     sete al
     pop rbx
@@ -36,9 +38,9 @@ ahe_hv_call PROC
     mov rax, [rsp+38h+30h]   ; out_r13
     push rax
 
-    mov r10, 041484500CAFE1337h  ; AHE_CPUID_MAGIC (64-bit)
+    mov r10, AHE_CPUID_MAGIC
     ; R11 = AHE_CMD_MAGIC | cmd
-    mov rax, 0A4E0C0DECAFE1300h
+    mov rax, AHE_CMD_MAGIC
     or rax, rcx
     mov r11, rax
     mov r12, rdx             ; a0

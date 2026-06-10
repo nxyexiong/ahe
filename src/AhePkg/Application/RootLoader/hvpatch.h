@@ -2,7 +2,7 @@
 #include <Uefi.h>
 #include "defs.h"
 
-// load hvstub.sys from EFI partition into memory
+// load hvstub_intel.dll or hvstub_amd.dll from EFI partition into memory
 EFI_STATUS EFIAPI InitHvStub(EFI_HANDLE ImageHandle);
 
 // called from ImgArchStartBootApplicationHook to set up the BlLdrLoadImage

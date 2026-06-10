@@ -28,10 +28,20 @@ int main() {
     run_test("ping", pong);
     if (!pong) { printf("aborting.\n"); return 1; }
 
+    // detect CPU vendor
+    int cpuInfo[4];
+    __cpuid(cpuInfo, 0);
+    bool isAmd = (cpuInfo[1] == 0x68747541); // "Auth" from "AuthenticAMD"
+    printf("  CPU: %s\n", isAmd ? "AMD" : "Intel");
+
+    // VMCS field (Intel) vs VMCB offset (AMD)
+    uint64_t FIELD_CR3 = isAmd ? 0x550 : 0x6802;
+    uint64_t FIELD_RIP = isAmd ? 0x578 : 0x681E;
+
     // step 2: VMREAD guest CR3
     printf("\nstep 2: VMREAD guest CR3\n");
     uint64_t status = 0, cr3 = 0;
-    hv_call(0x03, 0x6802, 0, 0, &status, nullptr, &cr3);
+    hv_call(0x03, FIELD_CR3, 0, 0, &status, nullptr, &cr3);
     printf("  status=%llx, cr3=%llx\n", status, cr3);
     run_test("vmread_cr3", status == 0 && cr3 != 0);
 
@@ -39,7 +49,7 @@ int main() {
     printf("\nstep 3: VMREAD guest RIP\n");
     uint64_t guest_rip = 0;
     status = 0;
-    hv_call(0x03, 0x681E, 0, 0, &status, nullptr, &guest_rip);
+    hv_call(0x03, FIELD_RIP, 0, 0, &status, nullptr, &guest_rip);
     printf("  status=%llx, guest_rip=%llx\n", status, guest_rip);
     run_test("vmread_rip", status == 0 && guest_rip != 0);
 
@@ -50,11 +60,13 @@ int main() {
     printf("  status=%llx\n", status);
     run_test("invl_caches", status == 0);
 
-    // step 5: phys read via PTE mapping (DmaBackdoorHv approach: PTE index 0, VA 0)
+    // step 5: phys read via PTE mapping (PTE index 0x100, VA 0x100000)
     printf("\nstep 5: VIRT_WRITE PTE + VIRT_READ mapped page\n");
     {
         uint64_t PTE_BASE = 0xffffff0000000000ULL;
-        uint64_t pte_addr = PTE_BASE + 0; // PTE index 0
+        uint64_t pte_index = 0x100ULL;
+        uint64_t pte_addr = PTE_BASE + (pte_index * sizeof(uint64_t));
+        uint64_t map_va = pte_index * 0x1000ULL;
         // save old PTE
         uint64_t old_pte = 0;
         hv_call(0x01 /*VIRT_READ*/, pte_addr, 0, 0, &status, nullptr, &old_pte);
@@ -67,7 +79,7 @@ int main() {
         hv_call(0x06, 0, 0, 0, &status, nullptr, nullptr);
         // read PML4E[0] at VA 0
         uint64_t pml4e = 0;
-        hv_call(0x01 /*VIRT_READ*/, 0, 0, 0, &status, nullptr, &pml4e);
+        hv_call(0x01 /*VIRT_READ*/, map_va, 0, 0, &status, nullptr, &pml4e);
         printf("  PML4E[0]=%llx, status=%llx\n", pml4e, status);
         // restore old PTE
         hv_call(0x02, pte_addr, old_pte, 0, &status, nullptr, nullptr);
@@ -84,13 +96,13 @@ int main() {
             uint64_t PHYS_MASK = 0x000FFFFFFFFFF000ULL;
 
             auto phys_read8 = [&](uint64_t gpa) -> uint64_t {
-                uint64_t pte_addr = PTE_BASE + 0;
+                uint64_t pte_addr = PTE_BASE + (0x100ULL * sizeof(uint64_t));
                 uint64_t old = 0;
                 hv_call(0x01, pte_addr, 0, 0, &status, nullptr, &old);
                 hv_call(0x02, pte_addr, (gpa & PHYS_MASK) | 0x03, 0, &status, nullptr, nullptr);
                 hv_call(0x06, 0, 0, 0, &status, nullptr, nullptr);
                 uint64_t val = 0;
-                hv_call(0x01, gpa & 0xFFF, 0, 0, &status, nullptr, &val);
+                hv_call(0x01, (0x100ULL * 0x1000ULL) + (gpa & 0xFFF), 0, 0, &status, nullptr, &val);
                 hv_call(0x02, pte_addr, old, 0, &status, nullptr, nullptr);
                 hv_call(0x06, 0, 0, 0, &status, nullptr, nullptr);
                 return val;

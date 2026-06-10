@@ -31,6 +31,9 @@
       <SubSystem>Console</SubSystem>
       <AdditionalDependencies>$(OutDir)memtool.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <MASM>
+      <IncludePaths>$(ProjectDir)..;%(IncludePaths)</IncludePaths>
+    </MASM>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
